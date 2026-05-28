@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 
-export async function middleware(request) {
+export async function proxy(request) {
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
@@ -21,26 +21,11 @@ export async function middleware(request) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
-  const { pathname } = request.nextUrl;
-
-  // Authenticated user at login page → send to payment/activation flow
-  if (pathname === "/portal" && user) {
-    return NextResponse.redirect(new URL("/portal/pago", request.url));
-  }
-
-  // Protect payment and dashboard routes from unauthenticated users
-  if ((pathname === "/portal/pago" || pathname.startsWith("/portal/pago/")) && !user) {
-    return NextResponse.redirect(new URL("/portal", request.url));
-  }
-
-  if (pathname.match(/^\/portal\/.+\/dashboard/) && !user) {
-    return NextResponse.redirect(new URL("/portal", request.url));
-  }
+  await supabase.auth.getUser();
 
   return supabaseResponse;
 }
 
 export const config = {
-  matcher: ["/portal", "/portal/:path*"],
+  matcher: ["/portal/:path*"],
 };

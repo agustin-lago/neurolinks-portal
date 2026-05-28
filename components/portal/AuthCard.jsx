@@ -112,7 +112,6 @@ function LoginForm({ onSwitch, onForgot }) {
       setError(parseError(error.message));
       setLoading(false);
     } else {
-      router.push("/portal/pago");
       router.refresh();
     }
   };

@@ -31,9 +31,9 @@ export async function POST() {
       external_reference: String(cliente.id),
       notification_url:   `${siteUrl}/api/webhooks/mercadopago`,
       back_urls: {
-        success: `${siteUrl}/portal/pago/exito`,
-        failure: `${siteUrl}/portal/pago`,
-        pending: `${siteUrl}/portal/pago`,
+        success: `${siteUrl}/portal`,
+        failure: `${siteUrl}/portal`,
+        pending: `${siteUrl}/portal`,
       },
       auto_return: "approved",
     },

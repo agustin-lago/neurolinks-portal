@@ -66,13 +66,14 @@ export async function POST(request) {
       projectId,
     });
 
-    // Mark client as activated
+    // Mark client as activated and record the amount paid
     await supabase
       .from("clientes")
       .update({
         backoffice_activado: true,
         token_backoffice:    projectId,
         deployment_url:      `${slug}.clientesneurolinks.com`,
+        abono:               String(paymentData.transaction_amount),
       })
       .eq("id", clienteId);
 
