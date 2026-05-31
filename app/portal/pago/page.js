@@ -20,9 +20,51 @@ export default async function PagoPage() {
     redirect(`https://${cliente.deployment_url}`);
   }
 
+  // Fetch dynamic plans from the principal seller to show official subscription prices
+  let planesPrincipales = [];
+  try {
+    let sellerId = null;
+
+    // 1. Try to find the seller by the principal user_id '39957203' (from MP_ACCESS_TOKEN)
+    const { data: mainSeller } = await supabase
+      .from("mp_vendedores")
+      .select("id")
+      .eq("mp_user_id", "39957203")
+      .single();
+
+    if (mainSeller) {
+      sellerId = mainSeller.id;
+    } else {
+      // 2. Fallback: get the first registered seller
+      const { data: firstSeller } = await supabase
+        .from("mp_vendedores")
+        .select("id")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .single();
+      
+      if (firstSeller) {
+        sellerId = firstSeller.id;
+      }
+    }
+
+    if (sellerId) {
+      const { data: plans } = await supabase
+        .from("mp_planes")
+        .select("plan_tipo, lineas_cantidad, monto")
+        .eq("vendedor_id", sellerId);
+      
+      if (plans) {
+        planesPrincipales = plans;
+      }
+    }
+  } catch (err) {
+    console.error("[PagoPage] Error loading dynamic prices:", err);
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
-      <PagoClient cliente={cliente} />
+      <PagoClient cliente={cliente} planesPrincipales={planesPrincipales} />
     </div>
   );
 }
