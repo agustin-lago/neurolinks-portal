@@ -9,6 +9,14 @@ export async function POST() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    // Instant Sandbox Redirect: Use the user's pre-created test plan if the active token is a TEST- credential
+    const mainToken = process.env.MP_ACCESS_TOKEN || "";
+    if (mainToken.startsWith("TEST-")) {
+      return NextResponse.json({
+        init_point: "https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=1036eadd76e2446a8cc87b9b7c258e12"
+      });
+    }
+
     // 1. Fetch current client settings
     const { data: cliente } = await supabase
       .from("clientes")
