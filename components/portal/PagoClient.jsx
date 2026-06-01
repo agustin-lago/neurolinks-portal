@@ -50,8 +50,8 @@ export default function PagoClient({ cliente, planesPrincipales = [] }) {
   // USD equivalents for international pricing
   const USD_PRICES = {
     masivo_meta: {
-      1: 50,
-      2: 75,
+      1: 45,
+      2: 70,
       3: 95,
     },
     chatbot_ia: {
