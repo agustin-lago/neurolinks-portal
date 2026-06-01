@@ -21,71 +21,10 @@ export async function POST() {
     // Dynamic Sandbox Redirect: Binds the customer ID as external_reference to your custom test plan
     const mainToken = process.env.MP_ACCESS_TOKEN || "";
     if (mainToken.startsWith("TEST-")) {
-      console.log("[Crear Pago] Running in SANDBOX/TEST mode. Connected co-sellers are strictly bypassed.");
-      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-      
-      // Try with custom preapproval plan first
-      try {
-        const mpPreapprovalRes = await fetch("https://api.mercadopago.com/preapproval", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${mainToken}`,
-          },
-          body: JSON.stringify({
-            preapproval_plan_id: "358041f6f4ed48a791361d4243feb62e",
-            payer_email: user.email || "test_user@clientesneurolinks.com",
-            back_url: `${siteUrl}/portal/pago/exito`,
-            external_reference: String(cliente.id),
-          }),
-        });
-
-        const mpPreapprovalData = await mpPreapprovalRes.json();
-        if (mpPreapprovalRes.ok && mpPreapprovalData.init_point) {
-          console.log("[Crear Pago Sandbox] Successfully created sandbox payment using custom preapproval plan.");
-          return NextResponse.json({ init_point: mpPreapprovalData.init_point });
-        } else {
-          console.warn("[Crear Pago Sandbox] Custom preapproval plan failed, trying on-the-fly sandbox creation:", mpPreapprovalData);
-        }
-      } catch (err) {
-        console.error("[Crear Pago Sandbox] Custom preapproval plan call crashed, trying fallback:", err);
-      }
-
-      // Sandbox Fallback: Create a sandbox subscription on-the-fly using the main TEST- token
-      try {
-        const price = Number(String(cliente.abono ?? "63000").replace(/[^0-9.]/g, "")) || 63000;
-        const mpPreapprovalRes = await fetch("https://api.mercadopago.com/preapproval", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${mainToken}`,
-          },
-          body: JSON.stringify({
-            reason: cliente.plan ?? "Envíos Masivos - 1 Línea",
-            auto_recurring: {
-              frequency: 1,
-              frequency_type: "months",
-              transaction_amount: price,
-              currency_id: "ARS",
-            },
-            payer_email: user.email || "test_user@clientesneurolinks.com",
-            back_url: `${siteUrl}/portal/pago/exito`,
-            external_reference: String(cliente.id),
-          }),
-        });
-
-        const mpPreapprovalData = await mpPreapprovalRes.json();
-        if (mpPreapprovalRes.ok && mpPreapprovalData.init_point) {
-          console.log("[Crear Pago Sandbox] Successfully created on-the-fly sandbox preapproval subscription.");
-          return NextResponse.json({ init_point: mpPreapprovalData.init_point });
-        } else {
-          console.error("[Crear Pago Sandbox] Sandbox on-the-fly creation failed:", mpPreapprovalData);
-          throw new Error(mpPreapprovalData.message || "Error al generar la suscripción de pruebas.");
-        }
-      } catch (err) {
-        console.error("[Crear Pago Sandbox] Critical sandbox error:", err);
-        return NextResponse.json({ error: err.message }, { status: 500 });
-      }
+      console.log("[Crear Pago] Running in SANDBOX/TEST mode. Instantly redirecting to custom test subscription link.");
+      const testPlanId = "358041f6f4ed48a791361d4243feb62e";
+      const initPoint = `https://www.mercadopago.com.ar/subscriptions/checkout?preapproval_plan_id=${testPlanId}&external_reference=${cliente.id}`;
+      return NextResponse.json({ init_point: initPoint });
     }
 
     const adminDb = createAdminClient();
