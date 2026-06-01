@@ -33,7 +33,7 @@ export async function POST() {
             "Authorization": `Bearer ${mainToken}`,
           },
           body: JSON.stringify({
-            preapproval_plan_id: "1036eadd76e2446a8cc87b9b7c258e12",
+            preapproval_plan_id: "358041f6f4ed48a791361d4243feb62e",
             payer_email: user.email || "test_user@clientesneurolinks.com",
             back_url: `${siteUrl}/portal/pago/exito`,
             external_reference: String(cliente.id),
