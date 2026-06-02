@@ -22,7 +22,7 @@ export async function POST() {
     const mainToken = process.env.MP_ACCESS_TOKEN || "";
     if (mainToken.startsWith("TEST-")) {
       console.log("[Crear Pago] Running in SANDBOX/TEST mode. Instantly redirecting to custom test subscription link.");
-      const testPlanId = "1036eadd76e2446a8cc87b9b7c258e12";
+      const testPlanId = "22efa35a74c941cfbc4e84bb6a2dd306";
       const initPoint = `https://www.mercadopago.com/subscriptions/checkout?preapproval_plan_id=${testPlanId}&external_reference=${cliente.id}`;
       return NextResponse.json({ init_point: initPoint });
     }
