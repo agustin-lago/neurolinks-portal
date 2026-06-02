@@ -21,8 +21,26 @@ export async function middleware(request) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  let user = null;
   const { pathname } = request.nextUrl;
+
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data?.user;
+  } catch (authErr) {
+    console.warn("[Middleware] Invalid or expired refresh token:", authErr.message);
+    // If the session is corrupted, clear cookies and redirect back to /portal login
+    const redirectRes = NextResponse.redirect(new URL("/portal", request.url));
+    
+    // Find all cookies matching supabase auth naming patterns and clear them
+    const cookieList = request.cookies.getAll();
+    cookieList.forEach(c => {
+      if (c.name.includes("sb-") || c.name.includes("supabase")) {
+        redirectRes.cookies.delete(c.name);
+      }
+    });
+    return redirectRes;
+  }
 
   // Authenticated user at login page → send to payment/activation flow
   if (pathname === "/portal" && user) {
