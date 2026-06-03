@@ -8,12 +8,11 @@ export async function POST(request) {
     const url  = new URL(request.url);
     const body = await request.json().catch(() => ({}));
 
-    const topic     = url.searchParams.get("topic") ?? body?.type;
-    const paymentId = url.searchParams.get("id")    ?? body?.data?.id;
+    const topic     = url.searchParams.get("topic") ?? body?.type ?? body?.action;
+    const resourceId = url.searchParams.get("id")    ?? body?.data?.id;
     const mpUserId  = body?.user_id; // ID of the MP seller who collected the money
 
-    // MP also sends non-payment notifications (merchant_order, etc.) — ignore them
-    if (topic !== "payment" || !paymentId) {
+    if (!resourceId) {
       return NextResponse.json({ ok: true });
     }
 
@@ -21,8 +20,6 @@ export async function POST(request) {
     let accessToken = process.env.MP_ACCESS_TOKEN;
 
     // 1 — Resolve Seller Access Token based on mpUserId in the webhook body
-    // We resolve the connected seller's token from mp_vendedores if mpUserId is present.
-    // If the seller is not connected or not found, we fallback to the main MP_ACCESS_TOKEN.
     if (mpUserId) {
       const { data: vendedor } = await adminDb
         .from("mp_vendedores")
@@ -35,30 +32,60 @@ export async function POST(request) {
       }
     }
 
-    // 2 — Get payment status from Mercado Pago using seller's accessToken
-    let paymentData;
-    try {
-      const mp          = new MercadoPagoConfig({ accessToken });
-      const paymentApi  = new Payment(mp);
-      paymentData = await paymentApi.get({ id: String(paymentId) });
-    } catch (apiErr) {
-      console.warn(`[Webhook] Ignored mock or non-existent payment ID '${paymentId}':`, apiErr.message);
-      // Return 200 OK to Mercado Pago so they don't retry and the MP test console shows a successful response
-      return NextResponse.json({ ok: true, message: "Ignored invalid/mock payment ID" });
-    }
+    let clienteId = null;
+    let preapprovalId = null;
 
-    if (paymentData.status !== "approved") {
+    if (topic === "payment") {
+      // 2 — Get payment status from Mercado Pago using seller's accessToken
+      let paymentData;
+      try {
+        const mp          = new MercadoPagoConfig({ accessToken });
+        const paymentApi  = new Payment(mp);
+        paymentData = await paymentApi.get({ id: String(resourceId) });
+      } catch (apiErr) {
+        console.warn(`[Webhook] Ignored mock or non-existent payment ID '${resourceId}':`, apiErr.message);
+        // Return 200 OK to Mercado Pago so they don't retry and the MP test console shows a successful response
+        return NextResponse.json({ ok: true, message: "Ignored invalid/mock payment ID" });
+      }
+
+      if (paymentData.status !== "approved") {
+        return NextResponse.json({ ok: true });
+      }
+
+      clienteId = paymentData.external_reference;
+      preapprovalId = paymentData.preapproval_id ?? 
+                      paymentData.point_of_interaction?.transaction_data?.subscription_id;
+
+    } else if (topic === "preapproval" || topic === "subscription_authorized" || topic === "subscription_preapproval" || topic === "authorized_payment") {
+      // 2.1 — Get preapproval status from Mercado Pago using seller's accessToken
+      let preapprovalData;
+      try {
+        const mpRes = await fetch(`https://api.mercadopago.com/preapproval/${resourceId}`, {
+          headers: {
+            "Authorization": `Bearer ${accessToken}`
+          }
+        });
+        preapprovalData = await mpRes.json();
+      } catch (apiErr) {
+        console.warn(`[Webhook] Ignored mock or non-existent preapproval ID '${resourceId}':`, apiErr.message);
+        return NextResponse.json({ ok: true, message: "Ignored invalid/mock preapproval ID" });
+      }
+
+      if (!preapprovalData || preapprovalData.status !== "authorized") {
+        return NextResponse.json({ ok: true });
+      }
+
+      clienteId = preapprovalData.external_reference;
+      preapprovalId = preapprovalData.id;
+
+    } else {
+      // MP also sends other notifications (merchant_order, etc.) — ignore them but respond 200 OK to satisfy MP quality
       return NextResponse.json({ ok: true });
     }
 
-    let clienteId = paymentData.external_reference;
-
     // Fallback: If the payment lacks external_reference, resolve the preapproval ID robustly
-    const preapprovalId = paymentData.preapproval_id ?? 
-                          paymentData.point_of_interaction?.transaction_data?.subscription_id;
-
     if (!clienteId && preapprovalId) {
-      console.log(`[Webhook] Payment lacks external_reference but has preapproval_id/subscription_id '${preapprovalId}'. Searching in database...`);
+      console.log(`[Webhook] Notification lacks external_reference but has preapproval_id/subscription_id '${preapprovalId}'. Searching in database...`);
       try {
         const { data: matchedClient } = await adminDb
           .from("clientes")
@@ -86,8 +113,20 @@ export async function POST(request) {
     // Validate UUID format to prevent database syntax errors (22P02: invalid input syntax for uuid)
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (!clienteId || !uuidRegex.test(clienteId)) {
-      console.warn(`[Webhook] Ignored payment with invalid/missing external_reference (client UUID): '${clienteId}'`);
+      console.warn(`[Webhook] Ignored notification with invalid/missing external_reference (client UUID): '${clienteId}'`);
       return NextResponse.json({ ok: true, message: "Ignored invalid external_reference format" });
+    }
+
+    // Link the preapproval ID if it is resolved and not yet stored
+    if (preapprovalId) {
+      try {
+        await adminDb
+          .from("clientes")
+          .update({ mp_preapproval_id: String(preapprovalId) })
+          .eq("id", clienteId);
+      } catch (linkErr) {
+        console.error("[Webhook] Failed to link preapproval_id in DB:", linkErr);
+      }
     }
 
     // Trigger the shared client portal activation in background to prevent MP webhook timeout
