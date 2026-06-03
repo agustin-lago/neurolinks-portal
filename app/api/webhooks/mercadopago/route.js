@@ -53,11 +53,14 @@ export async function POST(request) {
 
     let clienteId = paymentData.external_reference;
 
-    // Fallback: If the payment lacks external_reference but comes from a subscription (preapproval_id)
-    if (!clienteId && paymentData.preapproval_id) {
-      console.log(`[Webhook] Payment lacks external_reference but has preapproval_id '${paymentData.preapproval_id}'. Fetching subscription details...`);
+    // Fallback: If the payment lacks external_reference, resolve the preapproval ID robustly
+    const preapprovalId = paymentData.preapproval_id ?? 
+                          paymentData.point_of_interaction?.transaction_data?.subscription_id;
+
+    if (!clienteId && preapprovalId) {
+      console.log(`[Webhook] Payment lacks external_reference but has preapproval_id/subscription_id '${preapprovalId}'. Fetching subscription details...`);
       try {
-        const preapprovalRes = await fetch(`https://api.mercadopago.com/preapproval/${paymentData.preapproval_id}`, {
+        const preapprovalRes = await fetch(`https://api.mercadopago.com/preapproval/${preapprovalId}`, {
           headers: {
             "Authorization": `Bearer ${accessToken}`,
           }
@@ -72,6 +75,12 @@ export async function POST(request) {
       } catch (subErr) {
         console.error("[Webhook] Error fetching subscription details:", subErr);
       }
+    }
+
+    // Normalize UUID if it comes from Mercado Pago without hyphens (32-character hex string)
+    if (clienteId && !clienteId.includes("-") && clienteId.length === 32) {
+      clienteId = `${clienteId.substring(0, 8)}-${clienteId.substring(8, 12)}-${clienteId.substring(12, 16)}-${clienteId.substring(16, 20)}-${clienteId.substring(20)}`;
+      console.log(`[Webhook] Formatted external_reference to standard UUID: '${clienteId}'`);
     }
 
     // Validate UUID format to prevent database syntax errors (22P02: invalid input syntax for uuid)
