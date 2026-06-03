@@ -111,7 +111,8 @@ export async function POST() {
           .single();
 
         if (plan?.init_point) {
-          return NextResponse.json({ init_point: plan.init_point });
+          const initPoint = `${plan.init_point}${plan.init_point.includes("?") ? "&" : "?"}external_reference=${cliente.id}`;
+          return NextResponse.json({ init_point: initPoint });
         }
 
         // Contingency fallback: If the specific plan doesn't exist, create it on-the-fly for this seller
@@ -151,7 +152,8 @@ export async function POST() {
               init_point: mpPlanData.init_point,
             });
 
-            return NextResponse.json({ init_point: mpPlanData.init_point });
+            const initPoint = `${mpPlanData.init_point}${mpPlanData.init_point.includes("?") ? "&" : "?"}external_reference=${cliente.id}`;
+            return NextResponse.json({ init_point: initPoint });
           }
         } catch (planCreateErr) {
           console.error("[Crear Pago] Dynamic plan creation failed:", planCreateErr);
