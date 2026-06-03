@@ -12,6 +12,7 @@ function Spinner() {
 function ExitoPageContent() {
   const [status, setStatus] = useState("polling"); // "polling" | "ready" | "error"
   const [url,    setUrl]    = useState(null);
+  const [attemptsState, setAttemptsState] = useState(0);
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -56,10 +57,12 @@ function ExitoPageContent() {
           }
 
           attempts++;
+          setAttemptsState(attempts);
           if (attempts >= MAX) { setStatus("error"); return; }
           setTimeout(poll, 5000);
         } catch {
           attempts++;
+          setAttemptsState(attempts);
           if (attempts >= MAX) { setStatus("error"); return; }
           setTimeout(poll, 5000);
         }
@@ -79,8 +82,11 @@ function ExitoPageContent() {
           <h1 className="font-heading font-extrabold text-white text-2xl mt-6 mb-2">
             Activando tu portal...
           </h1>
-          <p className="text-white/40 text-sm mb-1">
-            Estamos configurando tu backoffice.
+          <p className="text-white/40 text-sm mb-1 px-4">
+            {attemptsState > 9 
+              ? "El servidor está demorando un poco más de lo habitual en responder. Reintentando..." 
+              : "Estamos configurando tu backoffice."
+            }
           </p>
           <p className="text-white/25 text-xs">Esto puede tardar un par de minutos.</p>
         </>
