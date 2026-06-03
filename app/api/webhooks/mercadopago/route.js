@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { deployBackoffice } from "@/lib/railway";
+import { activateClientPortal } from "@/lib/railway";
 
 export async function POST(request) {
   try {
@@ -90,92 +90,10 @@ export async function POST(request) {
       return NextResponse.json({ ok: true, message: "Ignored invalid external_reference format" });
     }
 
-    // Fetch the client details
-    const { data: cliente } = await adminDb
-      .from("clientes")
-      .select("*")
-      .eq("id", clienteId)
-      .single();
-
-    // Guard: already processed or not found
-    if (!cliente || cliente.backoffice_activado) {
-      return NextResponse.json({ ok: true });
-    }
-
-    // 3 — Multi-Project deployment sequence loop based on plan selection
-    const count = cliente.plan_tipo === "masivo_meta" ? (cliente.lineas_cantidad || 1) : 1;
-    const deploymentUrls = [];
-    const tokenBackoffices = [];
-
-    for (let i = 0; i < count; i++) {
-      // Slugs for each line: slug-linea1, slug-linea2, etc. (or standard slug if only 1)
-      const slug = count > 1 ? `${cliente.proyecto_slug}-linea${i + 1}` : cliente.proyecto_slug;
-      let projectId = crypto.randomUUID(); // Fallback ID
-      let domain = `${slug}.clientesneurolinks.com`;
-
-      try {
-        console.log(`[Webhook] Starting Railway deploy for line ${i + 1} with slug: ${slug}...`);
-        const deployResult = await deployBackoffice({
-          slug,
-          supabaseUrl: process.env.SUPABASE_URL,
-          supabaseKey: process.env.SUPABASE_KEY,
-        });
-
-        if (deployResult?.projectId) {
-          projectId = deployResult.projectId;
-        }
-        if (deployResult?.domain) {
-          domain = deployResult.domain;
-        }
-
-        console.log(`[Webhook] Railway deploy successful for line ${i + 1}. Project ID: ${projectId}`);
-      } catch (deployErr) {
-        console.error(`[Webhook] Railway deployment failed for line ${i + 1}, using fallback details:`, deployErr);
-      }
-
-      deploymentUrls.push(domain);
-      tokenBackoffices.push(projectId);
-
-      // Copy default settings template to this newly created project_id partition in Supabase settings
-      try {
-        const { data: defaultSettings } = await adminDb
-          .from("settings")
-          .select("key, value")
-          .eq("project_id", "default");
-
-        if (defaultSettings?.length) {
-          await adminDb.from("settings").insert(
-            defaultSettings.map(s => ({
-              project_id: projectId,
-              key:        s.key,
-              value:      s.value,
-            }))
-          );
-        }
-      } catch (settingsErr) {
-        console.error(`[Webhook] Settings copy failed for partition ${projectId}:`, settingsErr);
-      }
-    }
-
-    // 4 — Save all dynamic activation data arrays to Supabase
-    const { error: updateError } = await adminDb
-      .from("clientes")
-      .update({
-        backoffice_activado: true,
-        token_backoffice:    tokenBackoffices[0],
-        tokens_backoffice:   tokenBackoffices,
-        deployment_url:      deploymentUrls[0],
-        deployment_urls:     deploymentUrls,
-        updated_at:          new Date().toISOString(),
-      })
-      .eq("id", clienteId);
-
-    if (updateError) {
-      console.error(`[Webhook] Failed to update client ${clienteId} status in database:`, updateError);
-      return NextResponse.json({ error: "Failed to update client status" }, { status: 500 });
-    }
-
-    console.log(`[Webhook] Client ${clienteId} activated successfully with ${count} line(s).`);
+    // Trigger the shared client portal activation
+    console.log(`[Webhook] Activating portal for client ID '${clienteId}'`);
+    const activation = await activateClientPortal(clienteId, adminDb);
+    console.log(`[Webhook] Activation status for client ID '${clienteId}':`, activation);
 
     return NextResponse.json({ ok: true });
   } catch (err) {
