@@ -51,7 +51,28 @@ export async function POST(request) {
       return NextResponse.json({ ok: true });
     }
 
-    const clienteId = paymentData.external_reference;
+    let clienteId = paymentData.external_reference;
+
+    // Fallback: If the payment lacks external_reference but comes from a subscription (preapproval_id)
+    if (!clienteId && paymentData.preapproval_id) {
+      console.log(`[Webhook] Payment lacks external_reference but has preapproval_id '${paymentData.preapproval_id}'. Fetching subscription details...`);
+      try {
+        const preapprovalRes = await fetch(`https://api.mercadopago.com/preapproval/${paymentData.preapproval_id}`, {
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+          }
+        });
+        if (preapprovalRes.ok) {
+          const preapprovalData = await preapprovalRes.json();
+          clienteId = preapprovalData.external_reference;
+          console.log(`[Webhook] Successfully resolved external_reference '${clienteId}' from subscription.`);
+        } else {
+          console.warn(`[Webhook] Failed to fetch subscription details:`, preapprovalRes.statusText);
+        }
+      } catch (subErr) {
+        console.error("[Webhook] Error fetching subscription details:", subErr);
+      }
+    }
 
     // Validate UUID format to prevent database syntax errors (22P02: invalid input syntax for uuid)
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
