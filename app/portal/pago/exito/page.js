@@ -74,7 +74,7 @@ function ExitoPageContent() {
             Activando tu portal...
           </h1>
           <p className="text-white/40 text-sm mb-1">
-            Estamos desplegando tu backoffice en Railway.
+            Estamos configurando tu backoffice.
           </p>
           <p className="text-white/25 text-xs">Esto puede tardar un par de minutos.</p>
         </>
