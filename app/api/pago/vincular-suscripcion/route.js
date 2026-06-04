@@ -12,7 +12,7 @@ export async function POST(request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const { preapprovalId } = await request.json().catch(() => ({}));
+    const { preapprovalId, id } = await request.json().catch(() => ({}));
 
     if (!preapprovalId) {
       return NextResponse.json({ error: "preapprovalId es requerido" }, { status: 400 });
@@ -20,13 +20,31 @@ export async function POST(request) {
 
     console.log(`[Vincular Suscripción] Associating preapproval_id '${preapprovalId}' to user '${user.id}'`);
 
-    // Update client row with the preapproval subscription ID
-    const { data, error } = await supabase
+    // Update targeted client row with the preapproval subscription ID
+    let updateQuery = supabase
       .from("clientes")
       .update({ mp_preapproval_id: String(preapprovalId) })
-      .eq("auth_user_id", user.id)
-      .select()
-      .single();
+      .eq("auth_user_id", user.id);
+
+    if (id) {
+      updateQuery = updateQuery.eq("id", id).select().single();
+    } else {
+      // Fallback to first row
+      const { data: firstClient } = await supabase
+        .from("clientes")
+        .select("id")
+        .eq("auth_user_id", user.id)
+        .limit(1)
+        .single();
+      
+      if (firstClient) {
+        updateQuery = updateQuery.eq("id", firstClient.id).select().single();
+      } else {
+        updateQuery = updateQuery.select().single();
+      }
+    }
+
+    const { data, error } = await updateQuery;
 
     if (error) {
       console.error("[Vincular Suscripción] Database update error:", error);

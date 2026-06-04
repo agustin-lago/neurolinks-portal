@@ -3,18 +3,28 @@ import { MercadoPagoConfig, Preference } from "mercadopago";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export async function POST() {
+export async function POST(request) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    // 1. Fetch current client settings
-    const { data: cliente } = await supabase
+    const body = await request.json().catch(() => ({}));
+    const targetId = body?.id;
+
+    // 1. Fetch targeted client settings
+    let query = supabase
       .from("clientes")
       .select("id, plan_tipo, lineas_cantidad, plan, abono, vendedor_id")
-      .eq("auth_user_id", user.id)
-      .single();
+      .eq("auth_user_id", user.id);
+
+    if (targetId) {
+      query = query.eq("id", targetId).single();
+    } else {
+      query = query.limit(1).single();
+    }
+
+    const { data: cliente } = await query;
 
     if (!cliente) return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
 

@@ -14,9 +14,16 @@ export default async function DashboardPage({ params }) {
 
   if (!user) redirect("/portal");
 
-  // Verificar que el slug coincide con el usuario autenticado
-  const userProyecto = user.user_metadata?.proyecto ?? user.email?.split("@")[0];
-  if (toSlug(userProyecto) !== proyecto) redirect("/portal");
+  // Verificar que el usuario posee este proyecto
+  const { data: cliente } = await supabase
+    .from("clientes")
+    .select("id")
+    .eq("auth_user_id", user.id)
+    .eq("proyecto_slug", proyecto)
+    .limit(1)
+    .maybeSingle();
+
+  if (!cliente) redirect("/portal/dashboard");
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">

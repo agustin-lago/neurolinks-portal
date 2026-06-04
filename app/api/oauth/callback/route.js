@@ -44,13 +44,14 @@ export async function GET(request) {
     const supabase = createAdminClient();
 
     // Verify the state user is indeed an admin
-    const { data: cliente } = await supabase
+    const { data: clientes } = await supabase
       .from("clientes")
       .select("is_admin")
-      .eq("auth_user_id", adminUserId)
-      .single();
+      .eq("auth_user_id", adminUserId);
 
-    if (!cliente || !cliente.is_admin) {
+    const isAdmin = clientes?.some(c => c.is_admin);
+
+    if (!isAdmin) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
 

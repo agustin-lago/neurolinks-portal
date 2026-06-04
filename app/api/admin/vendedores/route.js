@@ -9,13 +9,14 @@ export async function GET() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-    const { data: cliente } = await supabase
+    const { data: clientes } = await supabase
       .from("clientes")
       .select("is_admin")
-      .eq("auth_user_id", user.id)
-      .single();
+      .eq("auth_user_id", user.id);
 
-    if (!cliente || !cliente.is_admin) {
+    const isAdmin = clientes?.some(c => c.is_admin);
+
+    if (!isAdmin) {
       return NextResponse.json({ error: "Solo administradores" }, { status: 403 });
     }
 
@@ -63,13 +64,14 @@ export async function DELETE(request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-    const { data: cliente } = await supabase
+    const { data: clientes } = await supabase
       .from("clientes")
       .select("is_admin")
-      .eq("auth_user_id", user.id)
-      .single();
+      .eq("auth_user_id", user.id);
 
-    if (!cliente || !cliente.is_admin) {
+    const isAdmin = clientes?.some(c => c.is_admin);
+
+    if (!isAdmin) {
       return NextResponse.json({ error: "Solo administradores" }, { status: 403 });
     }
 

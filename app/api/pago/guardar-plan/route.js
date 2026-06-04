@@ -18,7 +18,7 @@ export async function POST(request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-    const { plan_tipo, lineas_cantidad } = await request.json();
+    const { plan_tipo, lineas_cantidad, id } = await request.json().catch(() => ({}));
 
     // Default fallbacks
     const selectedPlanTipo = plan_tipo === "chatbot_ia" ? "chatbot_ia" : "masivo_meta";
@@ -30,8 +30,8 @@ export async function POST(request) {
     // Get pricing and plan name
     const planConfig = PLANS_PRICING[selectedPlanTipo][selectedLines] || PLANS_PRICING.masivo_meta[1];
 
-    // Update client row in DB
-    const { data: updatedClient, error } = await supabase
+    // Update targeted client row in DB
+    let updateQuery = supabase
       .from("clientes")
       .update({
         plan_tipo: selectedPlanTipo,
@@ -46,9 +46,27 @@ export async function POST(request) {
         mp_preapproval_id: null,
         updated_at: new Date().toISOString(),
       })
-      .eq("auth_user_id", user.id)
-      .select("id, plan_tipo, lineas_cantidad, plan, abono")
-      .single();
+      .eq("auth_user_id", user.id);
+
+    if (id) {
+      updateQuery = updateQuery.eq("id", id).select("id, plan_tipo, lineas_cantidad, plan, abono").single();
+    } else {
+      // Fallback to first row
+      const { data: firstClient } = await supabase
+        .from("clientes")
+        .select("id")
+        .eq("auth_user_id", user.id)
+        .limit(1)
+        .single();
+      
+      if (firstClient) {
+        updateQuery = updateQuery.eq("id", firstClient.id).select("id, plan_tipo, lineas_cantidad, plan, abono").single();
+      } else {
+        updateQuery = updateQuery.select("id, plan_tipo, lineas_cantidad, plan, abono").single();
+      }
+    }
+
+    const { data: updatedClient, error } = await updateQuery;
 
     if (error) throw error;
 

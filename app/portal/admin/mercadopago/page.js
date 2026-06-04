@@ -10,14 +10,15 @@ export default async function AdminMercadoPagoPage() {
   if (!user) redirect("/portal");
 
   // Get client details and verify is_admin
-  const { data: cliente } = await supabase
+  const { data: clientes } = await supabase
     .from("clientes")
     .select("is_admin")
-    .eq("auth_user_id", user.id)
-    .single();
+    .eq("auth_user_id", user.id);
 
-  if (!cliente || !cliente.is_admin) {
-    redirect("/portal/pago"); // Redirect normal clients to their payment page
+  const isAdmin = clientes?.some(c => c.is_admin);
+
+  if (!isAdmin) {
+    redirect("/portal/dashboard");
   }
 
   return (

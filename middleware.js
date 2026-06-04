@@ -42,13 +42,17 @@ export async function middleware(request) {
     return redirectRes;
   }
 
-  // Authenticated user at login page → send to payment/activation flow
+  // Authenticated user at login page → send to dashboard
   if (pathname === "/portal" && user) {
-    return NextResponse.redirect(new URL("/portal/pago", request.url));
+    return NextResponse.redirect(new URL("/portal/dashboard", request.url));
   }
 
   // Protect payment and dashboard routes from unauthenticated users
   if ((pathname === "/portal/pago" || pathname.startsWith("/portal/pago/")) && !user) {
+    return NextResponse.redirect(new URL("/portal", request.url));
+  }
+
+  if ((pathname === "/portal/dashboard" || pathname.startsWith("/portal/dashboard/")) && !user) {
     return NextResponse.redirect(new URL("/portal", request.url));
   }
 

@@ -4,16 +4,26 @@ import PagoClient from "@/components/portal/PagoClient";
 
 export const metadata = { title: "Activar portal | Neurolinks" };
 
-export default async function PagoPage() {
+export default async function PagoPage({ searchParams }) {
+  const { id } = await searchParams || {};
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/portal");
 
-  const { data: cliente } = await supabase
+  let query = supabase
     .from("clientes")
     .select("id, nombre, plan, abono, backoffice_activado, deployment_url")
-    .eq("auth_user_id", user.id)
-    .single();
+    .eq("auth_user_id", user.id);
+
+  if (id) {
+    query = query.eq("id", id).single();
+  } else {
+    query = query.limit(1).single();
+  }
+
+  const { data: cliente } = await query;
+
+  if (!cliente) redirect("/portal/dashboard");
 
   // Already paid — send directly to their backoffice
   if (cliente?.backoffice_activado && cliente?.deployment_url) {

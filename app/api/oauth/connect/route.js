@@ -10,13 +10,14 @@ export async function GET(request) {
     }
 
     // Check if the user is admin
-    const { data: cliente } = await supabase
+    const { data: clientes } = await supabase
       .from("clientes")
       .select("is_admin")
-      .eq("auth_user_id", user.id)
-      .single();
+      .eq("auth_user_id", user.id);
 
-    if (!cliente || !cliente.is_admin) {
+    const isAdmin = clientes?.some(c => c.is_admin);
+
+    if (!isAdmin) {
       return NextResponse.json({ error: "Solo administradores" }, { status: 403 });
     }
 

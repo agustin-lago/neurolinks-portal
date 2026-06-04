@@ -99,14 +99,21 @@ export default function PagoClient({ cliente, planesPrincipales = [] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           plan_tipo: activePlan,
-          lineas_cantidad: linesCount
+          lineas_cantidad: linesCount,
+          id: cliente.id
         })
       });
       const saveData = await saveRes.json();
       if (!saveRes.ok) throw new Error(saveData.error || "Error al registrar el plan elegido.");
 
       // 2. Generar el checkout
-      const res = await fetch("/api/pago/crear", { method: "POST" });
+      const res = await fetch("/api/pago/crear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: cliente.id
+        })
+      });
       const data = await res.json();
       if (!res.ok || !data.init_point) throw new Error(data.error ?? "Error al crear el portal de pago.");
       
@@ -127,7 +134,8 @@ export default function PagoClient({ cliente, planesPrincipales = [] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           plan_tipo: activePlan,
-          lineas_cantidad: linesCount
+          lineas_cantidad: linesCount,
+          id: cliente.id
         })
       });
       const saveData = await saveRes.json();

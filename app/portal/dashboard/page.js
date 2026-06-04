@@ -1,2 +1,19 @@
+import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-export default function OldDashboard() { redirect("/portal"); }
+import DashboardClient from "@/components/portal/DashboardClient";
+
+export const metadata = { title: "Dashboard | Neurolinks" };
+
+export default async function DashboardPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/portal");
+
+  const { data: clientes } = await supabase
+    .from("clientes")
+    .select("id, nombre, plan, abono, backoffice_activado, deployment_url, deployment_urls, plan_tipo, lineas_cantidad, proyecto_slug, empresa, created_at, is_admin")
+    .eq("auth_user_id", user.id)
+    .order("created_at", { ascending: false });
+
+  return <DashboardClient user={user} initialClientes={clientes || []} />;
+}
