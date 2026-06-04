@@ -129,6 +129,15 @@ export default function DashboardClient({ user, initialClientes }) {
               Configuración MercadoPago
             </Link>
           )}
+          <Link
+            href="/portal/dashboard/perfil"
+            className="px-4 py-2 text-xs font-semibold text-white/60 hover:text-white/80 transition-colors bg-white/[0.02] border border-white/[0.08] hover:border-white/[0.15] rounded-xl flex items-center gap-1.5"
+          >
+            <svg className="w-3.5 h-3.5 shrink-0 text-white/40" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
+            </svg>
+            Mi Cuenta
+          </Link>
           <button
             onClick={handleLogout}
             disabled={loadingLogout}
