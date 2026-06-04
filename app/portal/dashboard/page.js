@@ -11,7 +11,7 @@ export default async function DashboardPage() {
 
   const { data: clientes } = await supabase
     .from("clientes")
-    .select("id, nombre, plan, abono, backoffice_activado, deployment_url, deployment_urls, plan_tipo, lineas_cantidad, proyecto_slug, empresa, created_at, is_admin")
+    .select("id, nombre, plan, abono, backoffice_activado, deployment_url, deployment_urls, plan_tipo, lineas_cantidad, proyecto_slug, empresa, created_at, is_admin, mp_preapproval_id")
     .eq("auth_user_id", user.id)
     .order("created_at", { ascending: false });
 

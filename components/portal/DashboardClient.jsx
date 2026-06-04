@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -53,6 +53,49 @@ export default function DashboardClient({ user, initialClientes }) {
       setDeletingId(null);
     }
   };
+
+  // Poll Supabase to update status of deploying instances
+  useEffect(() => {
+    const hasDeploying = clientes.some(c => !c.backoffice_activado && c.mp_preapproval_id);
+    if (!hasDeploying) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const supabase = createClient();
+        const { data: updated, error } = await supabase
+          .from("clientes")
+          .select("id, backoffice_activado, deployment_url, deployment_urls, mp_preapproval_id, plan, plan_tipo, lineas_cantidad")
+          .eq("auth_user_id", user.id);
+
+        if (error) throw error;
+
+        if (updated) {
+          setClientes(prev => {
+            return prev.map(oldClient => {
+              const match = updated.find(u => u.id === oldClient.id);
+              if (match) {
+                return {
+                  ...oldClient,
+                  backoffice_activado: match.backoffice_activado,
+                  deployment_url: match.deployment_url,
+                  deployment_urls: match.deployment_urls,
+                  mp_preapproval_id: match.mp_preapproval_id,
+                  plan: match.plan,
+                  plan_tipo: match.plan_tipo,
+                  lineas_cantidad: match.lineas_cantidad
+                };
+              }
+              return oldClient;
+            });
+          });
+        }
+      } catch (err) {
+        console.error("[DashboardClient] Polling error:", err);
+      }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [clientes, user.id]);
 
   return (
     <div className="min-h-screen flex flex-col justify-between bg-transparent text-white relative overflow-x-hidden">
@@ -212,8 +255,8 @@ export default function DashboardClient({ user, initialClientes }) {
                 });
               }
 
-              // 2. Otherwise render a single card for the product (active or pending)
               const isActive = cliente.backoffice_activado && cliente.deployment_url;
+              const isDeploying = !cliente.backoffice_activado && cliente.mp_preapproval_id;
               
               return (
                 <div
@@ -221,7 +264,9 @@ export default function DashboardClient({ user, initialClientes }) {
                   className={`glass-strong rounded-2xl border p-6 flex flex-col justify-between relative overflow-hidden transition-all duration-300 group hover:shadow-[0_0_20px_rgba(0,153,255,0.06)] ${
                     isActive 
                       ? "border-white/[0.05] hover:border-accent/40 bg-white/[0.01] hover:bg-white/[0.02]" 
-                      : "border-white/[0.05] hover:border-amber-500/30 bg-white/[0.01]"
+                      : isDeploying
+                        ? "border-cyan-500/20 bg-white/[0.01]"
+                        : "border-white/[0.05] hover:border-amber-500/30 bg-white/[0.01]"
                   }`}
                 >
                   <div>
@@ -232,10 +277,15 @@ export default function DashboardClient({ user, initialClientes }) {
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                           Activo
                         </span>
+                      ) : isDeploying ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[9px] font-heading font-bold bg-cyan-500/10 text-cyan-400 border border-cyan-500/18 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+                          Desplegando portal y DNS...
+                        </span>
                       ) : (
                         <span className="px-2.5 py-0.5 rounded-full text-[9px] font-heading font-bold bg-amber-500/10 text-amber-400 border border-amber-500/18 flex items-center gap-1.5">
                           <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                          Pendiente de pago / activación
+                          Pendiente de pago
                         </span>
                       )}
                     </div>
@@ -287,6 +337,17 @@ export default function DashboardClient({ user, initialClientes }) {
                           <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
                         </svg>
                       </a>
+                    ) : isDeploying ? (
+                      <button
+                        disabled
+                        className="w-full flex items-center justify-center gap-2 bg-white/[0.02] border border-white/[0.08] rounded-xl py-3 text-xs font-semibold text-white/40 cursor-not-allowed"
+                      >
+                        <svg className="w-3.5 h-3.5 animate-spin text-cyan-400" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                        Configurando servidor...
+                      </button>
                     ) : (
                       <div className="flex gap-2">
                         <Link
