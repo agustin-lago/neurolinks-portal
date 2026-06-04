@@ -29,18 +29,34 @@ export async function POST(request) {
     if (id) {
       updateQuery = updateQuery.eq("id", id).select().single();
     } else {
-      // Fallback to first row
-      const { data: firstClient } = await supabase
+      // Fallback: get the most recently created pending (non-activated) and non-deleted client
+      const { data: pendingClient } = await supabase
         .from("clientes")
         .select("id")
         .eq("auth_user_id", user.id)
+        .eq("is_deleted", false)
+        .eq("backoffice_activado", false)
+        .order("created_at", { ascending: false })
         .limit(1)
         .single();
       
-      if (firstClient) {
-        updateQuery = updateQuery.eq("id", firstClient.id).select().single();
+      if (pendingClient) {
+        updateQuery = updateQuery.eq("id", pendingClient.id).select().single();
       } else {
-        updateQuery = updateQuery.select().single();
+        // Ultimate fallback: get any active (non-deleted) client
+        const { data: activeClient } = await supabase
+          .from("clientes")
+          .select("id")
+          .eq("auth_user_id", user.id)
+          .eq("is_deleted", false)
+          .limit(1)
+          .single();
+        
+        if (activeClient) {
+          updateQuery = updateQuery.eq("id", activeClient.id).select().single();
+        } else {
+          updateQuery = updateQuery.select().single();
+        }
       }
     }
 
