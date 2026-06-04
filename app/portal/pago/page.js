@@ -30,6 +30,13 @@ export default async function PagoPage({ searchParams }) {
     redirect(`https://${cliente.deployment_url}`);
   }
 
+  // Determine if the current user is admin (has at least one client row with is_admin = true)
+  const { data: userClientes } = await supabase
+    .from("clientes")
+    .select("is_admin")
+    .eq("auth_user_id", user.id);
+  const isAdmin = userClientes?.some(c => c.is_admin) || false;
+
   // Fetch dynamic plans from the principal seller to show official subscription prices
   let planesPrincipales = [];
   try {
@@ -74,7 +81,7 @@ export default async function PagoPage({ searchParams }) {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
-      <PagoClient cliente={cliente} planesPrincipales={planesPrincipales} />
+      <PagoClient cliente={cliente} planesPrincipales={planesPrincipales} isAdmin={isAdmin} />
     </div>
   );
 }

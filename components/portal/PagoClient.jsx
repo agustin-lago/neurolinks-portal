@@ -40,7 +40,7 @@ function CheckIcon() {
   );
 }
 
-export default function PagoClient({ cliente, planesPrincipales = [] }) {
+export default function PagoClient({ cliente, planesPrincipales = [], isAdmin = false }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -399,7 +399,7 @@ export default function PagoClient({ cliente, planesPrincipales = [] }) {
                 }
               </button>
 
-              {region === "AR" && (
+              {isAdmin && region === "AR" && (
                 <button
                   type="button"
                   onClick={handlePayTrial}
