@@ -9,6 +9,43 @@ export default function DashboardClient({ user, initialClientes, isUserAdmin }) 
   const [clientes, setClientes] = useState(initialClientes);
   const [loadingLogout, setLoadingLogout] = useState(false);
 
+  const isRecentActivation = (cliente) => {
+    if (!cliente.backoffice_activado || !cliente.railway_public_url) return false;
+    const activationTime = cliente.activated_at ? new Date(cliente.activated_at) : new Date(cliente.updated_at);
+    const diffMs = Date.now() - activationTime.getTime();
+    return diffMs < 15 * 60 * 1000;
+  };
+
+  const getPortalUrl = (cliente, index = null) => {
+    if (!cliente.backoffice_activado) return "";
+    
+    // Check if it's a recent activation (<15 min) and we have a public URL
+    if (isRecentActivation(cliente) && cliente.railway_public_url) {
+      let pubUrl = cliente.railway_public_url;
+      if (pubUrl.startsWith("[")) {
+        try {
+          const parsed = JSON.parse(pubUrl);
+          if (index !== null) {
+            pubUrl = parsed[index] || parsed[0] || null;
+          } else {
+            pubUrl = parsed[0] || null;
+          }
+        } catch (e) {
+          console.error("Error parsing railway_public_url array:", e);
+        }
+      }
+      if (pubUrl) {
+        return `https://${pubUrl}`;
+      }
+    }
+
+    // Default to custom domain
+    if (index !== null && cliente.deployment_urls && cliente.deployment_urls[index]) {
+      return `https://${cliente.deployment_urls[index]}`;
+    }
+    return `https://${cliente.deployment_url}`;
+  };
+
   const handleLogout = async () => {
     setLoadingLogout(true);
     try {
@@ -77,7 +114,7 @@ export default function DashboardClient({ user, initialClientes, isUserAdmin }) 
         const supabase = createClient();
         const { data: updated, error } = await supabase
           .from("clientes")
-          .select("id, backoffice_activado, deployment_url, deployment_urls, mp_preapproval_id, plan, plan_tipo, lineas_cantidad")
+          .select("id, backoffice_activado, deployment_url, deployment_urls, mp_preapproval_id, plan, plan_tipo, lineas_cantidad, railway_public_url, activated_at, updated_at")
           .eq("auth_user_id", user.id)
           .eq("is_deleted", false);
 
@@ -93,6 +130,9 @@ export default function DashboardClient({ user, initialClientes, isUserAdmin }) 
                   backoffice_activado: match.backoffice_activado,
                   deployment_url: match.deployment_url,
                   deployment_urls: match.deployment_urls,
+                  railway_public_url: match.railway_public_url,
+                  activated_at: match.activated_at,
+                  updated_at: match.updated_at,
                   mp_preapproval_id: match.mp_preapproval_id,
                   plan: match.plan,
                   plan_tipo: match.plan_tipo,
@@ -254,17 +294,24 @@ export default function DashboardClient({ user, initialClientes, isUserAdmin }) 
 
                       {/* Action Link */}
                       <div className="mt-6 flex gap-2">
-                        <a
-                          href={`https://${targetUrl}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex-1 flex items-center justify-center gap-2 bg-white/[0.03] group-hover:bg-accent border border-white/[0.08] group-hover:border-accent/40 rounded-xl py-3 text-xs font-semibold text-white transition-all duration-200"
-                        >
-                          Acceder al Backoffice
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                          </svg>
-                        </a>
+                        <div className="flex-1 flex flex-col gap-1">
+                          <a
+                            href={getPortalUrl(cliente, i)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center justify-center gap-2 bg-white/[0.03] group-hover:bg-accent border border-white/[0.08] group-hover:border-accent/40 rounded-xl py-3 text-xs font-semibold text-white transition-all duration-200"
+                          >
+                            Acceder al Backoffice
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                            </svg>
+                          </a>
+                          {isRecentActivation(cliente) && (
+                            <span className="text-[9px] text-cyan-400/80 text-center animate-pulse">
+                              DNS en proceso. Usando enlace temporal seguro.
+                            </span>
+                          )}
+                        </div>
                         <button
                           type="button"
                           onClick={() => handleDelete(cliente)}
@@ -354,17 +401,24 @@ export default function DashboardClient({ user, initialClientes, isUserAdmin }) 
                   <div className="mt-6">
                     {isActive ? (
                       <div className="flex gap-2 w-full">
-                        <a
-                          href={`https://${cliente.deployment_url}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex-1 flex items-center justify-center gap-2 bg-white/[0.03] group-hover:bg-accent border border-white/[0.08] group-hover:border-accent/40 rounded-xl py-3 text-xs font-semibold text-white transition-all duration-200"
-                        >
-                          Acceder al Backoffice
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                          </svg>
-                        </a>
+                        <div className="flex-1 flex flex-col gap-1">
+                          <a
+                            href={getPortalUrl(cliente)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex items-center justify-center gap-2 bg-white/[0.03] group-hover:bg-accent border border-white/[0.08] group-hover:border-accent/40 rounded-xl py-3 text-xs font-semibold text-white transition-all duration-200"
+                          >
+                            Acceder al Backoffice
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                            </svg>
+                          </a>
+                          {isRecentActivation(cliente) && (
+                            <span className="text-[9px] text-cyan-400/80 text-center animate-pulse">
+                              DNS en proceso. Usando enlace temporal seguro.
+                            </span>
+                          )}
+                        </div>
                         <button
                           type="button"
                           onClick={() => handleDelete(cliente)}

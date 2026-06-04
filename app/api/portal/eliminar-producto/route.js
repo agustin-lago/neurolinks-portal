@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { deleteRailwayProject } from "@/lib/railway";
+import { deleteRailwayProject, recalculatePlanSubscriptions } from "@/lib/railway";
 import { deleteDnsRecords } from "@/lib/dns";
 
 export async function POST(request) {
@@ -184,6 +184,17 @@ export async function POST(request) {
     }
 
     console.log(`[Teardown] Successfully soft-deleted product ${id} for user ${user.id}`);
+
+    // Recalcular suscripciones activas del plan si el cliente estaba activo y tenía vendedor
+    if (cliente.backoffice_activado && cliente.vendedor_id) {
+      await recalculatePlanSubscriptions(
+        cliente.vendedor_id,
+        cliente.plan_tipo,
+        cliente.lineas_cantidad,
+        adminDb
+      );
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("[Teardown] Critical error:", error);

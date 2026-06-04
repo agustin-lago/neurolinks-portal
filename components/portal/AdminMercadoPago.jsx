@@ -142,8 +142,11 @@ export default function AdminMercadoPago() {
                     </svg>
                   </div>
                   <div>
-                    <h3 className="font-heading font-bold text-white text-lg">
-                      Cuenta MP ID: <span className="text-gradient-accent">{seller.mp_user_id}</span>
+                    <h3 className="font-heading font-bold text-white text-lg flex items-center gap-2">
+                      {seller.nombre ? `${seller.nombre} ${seller.apellido || ""}` : "Cuenta MP ID: "}{!seller.nombre && <span className="text-gradient-accent">{seller.mp_user_id}</span>}
+                      {seller.nombre && (
+                        <span className="text-white/30 text-xs font-normal font-mono">({seller.mp_user_id})</span>
+                      )}
                     </h3>
                     <p className="text-white/30 text-xs mt-0.5">
                       Vinculada el: {new Date(seller.created_at).toLocaleDateString("es-AR")} a las {new Date(seller.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
@@ -195,7 +198,10 @@ export default function AdminMercadoPago() {
                       </div>
 
                       <div className="pt-2 border-t border-white/[0.04] flex items-center justify-between">
-                        <span className="text-white/20 text-[10px]">Listo para cobro</span>
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-heading font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/15 flex items-center gap-1">
+                          <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                          {plan.suscripciones_activas || 0} suscripcion{plan.suscripciones_activas === 1 ? "ón" : "ones"} activa{plan.suscripciones_activas === 1 ? "" : "s"}
+                        </span>
                         <a
                           href={plan.init_point}
                           target="_blank"

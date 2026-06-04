@@ -28,6 +28,8 @@ export async function GET() {
       .select(`
         id,
         mp_user_id,
+        nombre,
+        apellido,
         created_at,
         expires_at
       `)
@@ -40,7 +42,7 @@ export async function GET() {
       (sellers || []).map(async (seller) => {
         const { data: plans } = await adminDb
           .from("mp_planes")
-          .select("id, plan_tipo, lineas_cantidad, monto, init_point")
+          .select("id, plan_tipo, lineas_cantidad, monto, init_point, suscripciones_activas")
           .eq("vendedor_id", seller.id);
 
         return {

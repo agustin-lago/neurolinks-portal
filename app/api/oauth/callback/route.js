@@ -82,6 +82,30 @@ export async function GET(request) {
     const { access_token, refresh_token, user_id: mp_user_id, expires_in } = tokenData;
     const expires_at = new Date(Date.now() + (expires_in || 15552000) * 1000).toISOString();
 
+    // Query seller name and last name from Mercado Pago API
+    let nombre = null;
+    let apellido = null;
+    try {
+      console.log(`[OAuth Callback] Querying Mercado Pago user details for user ID ${mp_user_id}...`);
+      const userRes = await fetch(`https://api.mercadopago.com/users/${mp_user_id}`, {
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+        },
+      });
+
+      if (userRes.ok) {
+        const userData = await userRes.json();
+        nombre = userData.first_name || userData.nickname || null;
+        apellido = userData.last_name || null;
+        console.log(`[OAuth Callback] Successfully fetched seller info: ${nombre} ${apellido}`);
+      } else {
+        const userErrText = await userRes.text();
+        console.warn(`[OAuth Callback] Failed to fetch MP user details. Status: ${userRes.status}, Response: ${userErrText}`);
+      }
+    } catch (fetchUserErr) {
+      console.error("[OAuth Callback] Error fetching seller user info:", fetchUserErr.message);
+    }
+
     // Insert or Update the seller connected account
     const { data: vendedor, error: sellerError } = await supabase
       .from("mp_vendedores")
@@ -92,6 +116,8 @@ export async function GET(request) {
           access_token,
           refresh_token,
           expires_at,
+          nombre,
+          apellido,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "mp_user_id" }
