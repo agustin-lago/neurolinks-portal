@@ -21,10 +21,10 @@ export async function POST(request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const { proyecto_slug, empresa, plan_tipo, lineas_cantidad } = await request.json().catch(() => ({}));
+    const { proyecto_slug, empresa } = await request.json().catch(() => ({}));
 
-    if (!proyecto_slug || !empresa || !plan_tipo) {
-      return NextResponse.json({ error: "Faltan campos requeridos (slug, empresa, plan_tipo)" }, { status: 400 });
+    if (!proyecto_slug || !empresa) {
+      return NextResponse.json({ error: "Faltan campos requeridos (slug, empresa)" }, { status: 400 });
     }
 
     // Clean and validate slug (lowercase, alphanumeric and hyphens only)
@@ -43,14 +43,10 @@ export async function POST(request) {
       return NextResponse.json({ error: `El slug "${cleanSlug}" ya está registrado en Neurolinks. Elegí otro.` }, { status: 400 });
     }
 
-    // Resolve plan configuration
-    const selectedPlanTipo = plan_tipo === "chatbot_ia" ? "chatbot_ia" : "masivo_meta";
-    let selectedLines = Number(lineas_cantidad) || 1;
-    if (selectedPlanTipo === "chatbot_ia") selectedLines = 1;
-    if (selectedLines < 1) selectedLines = 1;
-    if (selectedLines > 3) selectedLines = 3;
-
-    const planConfig = PLANS_PRICING[selectedPlanTipo][selectedLines] || PLANS_PRICING.masivo_meta[1];
+    // Resolve default plan configuration (will be re-selected on the payment step)
+    const selectedPlanTipo = "masivo_meta";
+    const selectedLines = 1;
+    const planConfig = PLANS_PRICING[selectedPlanTipo][selectedLines];
 
     // Insert new product record in Supabase
     const { data: newClient, error: insertError } = await supabase

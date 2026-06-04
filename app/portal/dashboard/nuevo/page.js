@@ -9,8 +9,6 @@ export default function NuevoProductoPage() {
   const router = useRouter();
   const [empresa, setEmpresa] = useState("");
   const [slug, setSlug] = useState("");
-  const [planTipo, setPlanTipo] = useState("masivo_meta");
-  const [lines, setLines] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -36,9 +34,7 @@ export default function NuevoProductoPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           proyecto_slug: slug,
-          empresa: empresa,
-          plan_tipo: planTipo,
-          lineas_cantidad: lines
+          empresa: empresa
         })
       });
 
@@ -56,7 +52,7 @@ export default function NuevoProductoPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-between relative overflow-hidden bg-[#07111f] text-white">
+    <div className="min-h-screen flex flex-col justify-between relative overflow-hidden bg-transparent text-white">
       {/* Background glow effects */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-glow-accent opacity-15 pointer-events-none" />
 
@@ -146,70 +142,6 @@ export default function NuevoProductoPage() {
                   Solo minúsculas, números y guiones. Será la URL final de tu backoffice.
                 </p>
               </div>
-
-              {/* Tipo de Producto Selector */}
-              <div>
-                <label className="block text-[11px] font-heading font-semibold tracking-wide uppercase text-white/40 mb-1.5">
-                  Solución / Tipo de Producto
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPlanTipo("masivo_meta");
-                      setLines(1);
-                    }}
-                    className={`p-3.5 rounded-xl border text-center transition-all ${
-                      planTipo === "masivo_meta"
-                        ? "border-accent/50 bg-accent/8 text-white font-heading font-bold"
-                        : "border-white/[0.08] hover:border-white/[0.15] bg-white/[0.01] text-white/40 text-xs"
-                    }`}
-                  >
-                    <span className="block text-xs font-semibold mb-0.5">Envíos Masivos</span>
-                    <span className="text-[10px] opacity-60">API Oficial Meta</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPlanTipo("chatbot_ia");
-                      setLines(1);
-                    }}
-                    className={`p-3.5 rounded-xl border text-center transition-all ${
-                      planTipo === "chatbot_ia"
-                        ? "border-accent/50 bg-accent/8 text-white font-heading font-bold"
-                        : "border-white/[0.08] hover:border-white/[0.15] bg-white/[0.01] text-white/40 text-xs"
-                    }`}
-                  >
-                    <span className="block text-xs font-semibold mb-0.5">Chatbot IA</span>
-                    <span className="text-[10px] opacity-60">ChatGPT Integrado</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Líneas (Only for masivo_meta) */}
-              {planTipo === "masivo_meta" && (
-                <div>
-                  <label className="block text-[11px] font-heading font-semibold tracking-wide uppercase text-white/40 mb-1.5">
-                    Cantidad de Líneas
-                  </label>
-                  <div className="flex gap-2">
-                    {[1, 2, 3].map((num) => (
-                      <button
-                        key={num}
-                        type="button"
-                        onClick={() => setLines(num)}
-                        className={`flex-1 py-2 rounded-lg border text-center text-xs transition-all ${
-                          lines === num
-                            ? "border-accent/50 bg-accent/8 text-white font-heading font-bold"
-                            : "border-white/[0.08] hover:border-white/[0.15] bg-white/[0.01] text-white/50"
-                        }`}
-                      >
-                        {num} {num === 1 ? "Línea" : "Líneas"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Submit CTA */}
               <button

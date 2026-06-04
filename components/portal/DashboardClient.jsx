@@ -25,7 +25,7 @@ export default function DashboardClient({ user, initialClientes }) {
   const isAdmin = clientes.some(c => c.is_admin);
 
   return (
-    <div className="min-h-screen flex flex-col justify-between bg-[#07111f] text-white relative overflow-x-hidden">
+    <div className="min-h-screen flex flex-col justify-between bg-transparent text-white relative overflow-x-hidden">
       
       {/* Background glow effects */}
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-glow-accent opacity-10 pointer-events-none blur-3xl" />
