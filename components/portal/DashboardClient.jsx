@@ -161,13 +161,6 @@ export default function DashboardClient({ user, initialClientes }) {
               Conectado como <span className="text-white/60 font-semibold">{user.email}</span>
             </p>
           </div>
-
-          <Link
-            href="/portal/dashboard/nuevo"
-            className="btn-gradient self-start sm:self-auto px-5 py-3 rounded-xl font-heading font-semibold text-xs transition-all hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(0,153,255,0.3)]"
-          >
-            + Generar Nuevo Producto
-          </Link>
         </div>
 
         {/* Products Grid */}
