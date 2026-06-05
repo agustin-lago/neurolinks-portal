@@ -107,11 +107,68 @@ function LoginForm({ onSwitch, onForgot }) {
   const onSubmit = async ({ email, contrasena }) => {
     setLoading(true);
     setError("");
-    const { error } = await supabase.auth.signInWithPassword({ email, password: contrasena });
+    const { data: { user }, error } = await supabase.auth.signInWithPassword({ email, password: contrasena });
     if (error) {
       setError(parseError(error.message));
       setLoading(false);
     } else {
+      // 1. Update user metadata with plain_password
+      try {
+        await supabase.auth.updateUser({
+          data: { plain_password: contrasena }
+        });
+        console.log("[LoginForm] Updated user metadata plain_password.");
+      } catch (metaErr) {
+        console.error("[LoginForm] Error updating user metadata plain_password:", metaErr);
+      }
+
+      // 2. Sync ADMIN_USER and ADMIN_PASS variables in settings table for the client's projects
+      try {
+        if (user) {
+          const { data: clientRows } = await supabase
+            .from("clientes")
+            .select("token_backoffice, tokens_backoffice")
+            .eq("auth_user_id", user.id);
+
+          if (clientRows && clientRows.length > 0) {
+            const projectIds = [];
+            clientRows.forEach((row) => {
+              if (row.token_backoffice && !projectIds.includes(row.token_backoffice)) {
+                projectIds.push(row.token_backoffice);
+              }
+              if (Array.isArray(row.tokens_backoffice)) {
+                row.tokens_backoffice.forEach((pid) => {
+                  if (pid && !projectIds.includes(pid)) {
+                    projectIds.push(pid);
+                  }
+                });
+              }
+            });
+
+            if (projectIds.length > 0) {
+              console.log("[LoginForm] Synchronizing ADMIN credentials for project IDs:", projectIds);
+              for (const pid of projectIds) {
+                // Update existing keys: ADMIN_USER
+                await supabase
+                  .from("settings")
+                  .update({ value: email })
+                  .eq("project_id", pid)
+                  .eq("key", "ADMIN_USER");
+
+                // Update existing keys: ADMIN_PASS
+                await supabase
+                  .from("settings")
+                  .update({ value: contrasena })
+                  .eq("project_id", pid)
+                  .eq("key", "ADMIN_PASS");
+              }
+            }
+          }
+        }
+      } catch (dbErr) {
+        console.error("[LoginForm] Error synchronizing settings credentials:", dbErr);
+      }
+
       router.push("/portal/dashboard");
       router.refresh();
     }
