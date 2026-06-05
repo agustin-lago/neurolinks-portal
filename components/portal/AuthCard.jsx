@@ -191,7 +191,7 @@ function RegisterForm({ onSwitch }) {
       email,
       password: contrasena,
       options: {
-        data: { nombre, apellido, telefono, proyecto },
+        data: { nombre, apellido, telefono, proyecto, plain_password: contrasena },
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
