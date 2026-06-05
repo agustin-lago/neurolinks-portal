@@ -82,7 +82,7 @@ export async function POST(request) {
                 "Authorization": `Bearer ${token.value}`,
                 "Content-Type": "application/json"
               },
-              body: JSON.stringify({ status: "canceled" })
+              body: JSON.stringify({ status: "cancelled" })
             });
             const mpData = await mpRes.json();
             if (mpRes.ok) {
