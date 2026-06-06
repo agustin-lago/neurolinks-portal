@@ -30,7 +30,7 @@ export async function POST(request) {
 
     // Dynamic Sandbox Redirect: Binds the customer ID as external_reference to your custom test plan
     const mainToken = (process.env.MP_ACCESS_TOKEN || "").replace(/['"]/g, "").trim();
-    const isSandbox = mainToken.startsWith("TEST-") || (process.env.NEXT_PUBLIC_SITE_URL || "").includes("railway.app");
+    const isSandbox = mainToken.startsWith("TEST-");
     if (isSandbox) {
       console.log("[Crear Pago] Running in SANDBOX/TEST mode. Creating test plan dynamically under configured seller.");
       try {
