@@ -37,7 +37,7 @@ export async function GET(request) {
   const redirectUri = `${siteUrl}/api/oauth/callback`;
 
   if (!code || !adminUserId) {
-    return NextResponse.redirect(new URL("/portal/admin/mercadopago?error=missing_params", request.url));
+    return NextResponse.redirect(new URL("/portal/admin/mercadopago?error=missing_params", siteUrl));
   }
 
   try {
@@ -178,11 +178,11 @@ export async function GET(request) {
       }
     }
 
-    return NextResponse.redirect(new URL("/portal/admin/mercadopago?success=true", request.url));
+    return NextResponse.redirect(new URL("/portal/admin/mercadopago?success=true", siteUrl));
   } catch (error) {
     console.error("[OAuth Callback] Critical Error:", error);
     return NextResponse.redirect(
-      new URL(`/portal/admin/mercadopago?error=${encodeURIComponent(error.message)}`, request.url)
+      new URL(`/portal/admin/mercadopago?error=${encodeURIComponent(error.message)}`, siteUrl)
     );
   }
 }
