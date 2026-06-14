@@ -49,3 +49,7 @@ next-env.d.ts
 # scripts
 /scripts/
 
+# scratch and test files
+/scratch/
+scratch_*
+test_*
