@@ -16,7 +16,7 @@ const nextConfig = {
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob:",
               "media-src 'self'",
-              "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+              "connect-src 'self' https://*.supabase.co wss://*.supabase.co wss://*.trycloudflare.com",
               // Permite los chatbots de Railway.app en iframes
               "frame-src 'self' https://*.railway.app",
               // Permite microfono/cámara en los iframes de chatbots
@@ -28,5 +28,9 @@ const nextConfig = {
     ];
   },
 };
+
+if (process.env.TUNNEL_HOST) {
+  nextConfig.allowedDevOrigins = [process.env.TUNNEL_HOST];
+}
 
 export default nextConfig;

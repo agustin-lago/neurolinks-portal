@@ -52,33 +52,40 @@ export default function NuevoProductoPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-between relative overflow-hidden bg-transparent text-white">
+    <div className="min-h-[100dvh] flex flex-col justify-between relative overflow-hidden bg-transparent text-white w-full">
       {/* Background glow effects */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-glow-accent opacity-15 pointer-events-none" />
 
       {/* Header */}
-      <header className="relative z-10 w-full max-w-4xl mx-auto px-6 py-6 flex items-center justify-between border-b border-white/[0.04]">
-        <Link href="/portal/dashboard" className="group flex items-center gap-2 text-white/50 hover:text-white transition-colors duration-200">
-          <svg className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
-          </svg>
-          <span className="text-xs font-semibold">Volver al dashboard</span>
-        </Link>
-        
-        <Image
-          src="/images/neuro-logo.png"
-          alt="Neurolinks"
-          width={110}
-          height={44}
-          className="object-contain w-24 h-auto"
-          priority
-        />
+      <header className="relative z-10 w-full px-4 sm:px-6 h-[78px] flex items-center border-b border-white/[0.04] bg-white/[0.015] backdrop-blur-sm">
+        <div className="w-full max-w-6xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Image
+              src="/images/neuro-logo.png"
+              alt="Neurolinks"
+              width={40}
+              height={40}
+              className="object-contain w-8 sm:w-10 h-auto"
+              priority
+            />
+            <span className="hidden sm:inline-block px-2.5 py-1 rounded-md bg-white/[0.04] border border-white/[0.08] text-[10px] text-white/50 font-heading font-semibold tracking-wider uppercase">
+              Portal
+            </span>
+          </div>
+
+          <Link href="/portal/dashboard" className="group inline-flex items-center gap-1.5 sm:gap-2 text-white/50 hover:text-white transition-colors duration-200">
+            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform group-hover:-translate-x-0.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+            <span className="text-[10px] sm:text-xs font-semibold">Volver al dashboard</span>
+          </Link>
+        </div>
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 flex-1 flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-md">
-          
+      <main className="relative z-10 flex-1 flex items-center justify-center px-4 py-8 sm:py-12">
+        <div className="w-full max-w-md lg:max-w-3xl">
+
           {/* Page intro */}
           <div className="text-center mb-8">
             <p className="text-accent-light text-xs font-heading font-semibold tracking-widest uppercase mb-2">
@@ -95,7 +102,7 @@ export default function NuevoProductoPage() {
           {/* Form Card */}
           <div className="glass-strong rounded-2xl p-8 border border-white/[0.05]">
             <form onSubmit={handleSubmit} className="space-y-6">
-              
+
               {/* Error Banner */}
               {error && (
                 <div className="flex items-start gap-2.5 rounded-xl px-4 py-3"
@@ -107,40 +114,42 @@ export default function NuevoProductoPage() {
                 </div>
               )}
 
-              {/* Empresa / Proyecto */}
-              <div>
-                <label className="block text-[11px] font-heading font-semibold tracking-wide uppercase text-white/40 mb-1.5">
-                  Nombre del Proyecto / Empresa
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ej. Neurolinks Ventas"
-                  value={empresa}
-                  onChange={(e) => setEmpresa(e.target.value)}
-                  className="w-full bg-white/[0.03] border border-white/[0.08] hover:border-white/[0.14] focus:border-accent/50 rounded-xl px-4 py-2.5 text-white placeholder:text-white/20 text-sm outline-none transition-all duration-200"
-                />
-              </div>
-
-              {/* Subdominio Slug */}
-              <div>
-                <label className="block text-[11px] font-heading font-semibold tracking-wide uppercase text-white/40 mb-1.5">
-                  Subdominio sugerido (Slug)
-                </label>
-                <div className="flex items-center bg-white/[0.03] border border-white/[0.08] hover:border-white/[0.14] focus-within:border-accent/50 rounded-xl px-4 py-2.5 transition-all duration-200">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Empresa / Proyecto */}
+                <div>
+                  <label className="block text-[11px] font-heading font-semibold tracking-wide uppercase text-white/40 mb-1.5">
+                    Nombre del Proyecto / Empresa
+                  </label>
                   <input
                     type="text"
                     required
-                    placeholder="ej-mi-canal"
-                    value={slug}
-                    onChange={handleSlugChange}
-                    className="flex-1 bg-transparent text-white placeholder:text-white/20 text-sm outline-none"
+                    placeholder="Ej. Neurolinks Ventas"
+                    value={empresa}
+                    onChange={(e) => setEmpresa(e.target.value)}
+                    className="w-full bg-white/[0.03] border border-white/[0.08] hover:border-white/[0.14] focus:border-accent/50 rounded-xl px-4 py-2.5 text-white placeholder:text-white/20 text-sm outline-none transition-all duration-200"
                   />
-                  <span className="text-white/25 text-xs select-none">.clientesneurolinks.com</span>
                 </div>
-                <p className="text-[10px] text-white/30 mt-1.5">
-                  Solo minúsculas, números y guiones. Será la URL final de tu backoffice.
-                </p>
+
+                {/* Subdominio Slug */}
+                <div>
+                  <label className="block text-[11px] font-heading font-semibold tracking-wide uppercase text-white/40 mb-1.5">
+                    Subdominio sugerido (Slug)
+                  </label>
+                  <div className="flex items-center bg-white/[0.03] border border-white/[0.08] hover:border-white/[0.14] focus-within:border-accent/50 rounded-xl px-4 py-2.5 transition-all duration-200">
+                    <input
+                      type="text"
+                      required
+                      placeholder="ej-mi-canal"
+                      value={slug}
+                      onChange={handleSlugChange}
+                      className="flex-1 bg-transparent text-white placeholder:text-white/20 text-sm outline-none w-full min-w-0"
+                    />
+                    <span className="text-white/25 text-xs select-none shrink-0 whitespace-nowrap">.clientesneurolinks.com</span>
+                  </div>
+                  <p className="text-[10px] text-white/30 mt-1.5">
+                    Solo minúsculas, números y guiones. Será la URL final de tu backoffice.
+                  </p>
+                </div>
               </div>
 
               {/* Submit CTA */}

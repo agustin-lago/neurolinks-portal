@@ -4,6 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:test": "env-cmd -f .env.local_test next dev",
+    "dev:tunnel": "node tunnel.mjs",
+    "dev:tunnel:test": "env-cmd -f .env.local_test node tunnel.mjs",
     "build": "next build",
     "start": "next start"
   },
@@ -20,7 +23,13 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-hook-form": "^7.75.0",
+    "sweetalert2": "^11.26.25",
+    "sweetalert2-react-content": "^5.1.2",
     "swiper": "^12.1.4",
     "tailwindcss": "^3.4.19"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3",
+    "env-cmd": "^11.0.0"
   }
 }
