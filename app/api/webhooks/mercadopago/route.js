@@ -27,7 +27,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const secret = process.env.MP_WEBHOOK_SECRET;
-    const url  = new URL(request.url);
+    const url = new URL(request.url);
 
     // 0 — Verify Mercado Pago Signature if secret is configured
     if (secret) {
@@ -75,9 +75,9 @@ export async function POST(request) {
 
     const body = await request.json().catch(() => ({}));
 
-    const topic     = url.searchParams.get("topic") ?? body?.type ?? body?.action;
-    const resourceId = url.searchParams.get("id")    ?? body?.data?.id;
-    const mpUserId  = body?.user_id; // ID of the MP seller who collected the money
+    const topic = url.searchParams.get("topic") ?? body?.type ?? body?.action;
+    const resourceId = url.searchParams.get("id") ?? body?.data?.id;
+    const mpUserId = body?.user_id; // ID of the MP seller who collected the money
 
     console.log(`[Webhook] Incoming notification | topic: ${topic} | resourceId: ${resourceId} | mpUserId: ${mpUserId}`);
     console.log(`[Webhook] Request body:`, JSON.stringify(body));
@@ -97,7 +97,7 @@ export async function POST(request) {
         .select("access_token")
         .eq("mp_user_id", String(mpUserId))
         .single();
-      
+
       if (vendedor?.access_token) {
         accessToken = vendedor.access_token;
         console.log(`[Webhook] Resolved seller access token for mpUserId ${mpUserId}`);
@@ -131,7 +131,7 @@ export async function POST(request) {
       if (resolvedTopic === "payment") {
         mpData = await fetchMp(`/v1/payments/${resourceId}`, accessToken);
         console.log(`[Webhook] Successfully fetched payment '${resourceId}': status = ${mpData.status}`);
-        
+
         // Polling optimization: If payment is pending or in_process, wait 3 seconds and query again
         if (mpData && (mpData.status === "pending" || mpData.status === "in_process")) {
           console.log(`[Webhook] Payment '${resourceId}' is in status '${mpData.status}'. Waiting 3 seconds for approval...`);
@@ -142,13 +142,13 @@ export async function POST(request) {
 
         if (mpData && mpData.status === "approved") {
           clienteId = mpData.external_reference;
-          preapprovalId = mpData.preapproval_id ?? 
-                          mpData.point_of_interaction?.transaction_data?.subscription_id;
+          preapprovalId = mpData.preapproval_id ??
+            mpData.point_of_interaction?.transaction_data?.subscription_id;
         }
       } else if (resolvedTopic === "preapproval") {
         mpData = await fetchMp(`/preapproval/${resourceId}`, accessToken);
         console.log(`[Webhook] Successfully fetched preapproval '${resourceId}': status = ${mpData.status}`);
-        
+
         if (mpData.status === "authorized") {
           clienteId = mpData.external_reference;
           preapprovalId = mpData.id;
@@ -156,7 +156,7 @@ export async function POST(request) {
       } else if (resolvedTopic === "authorized_payment") {
         mpData = await fetchMp(`/authorized_payments/${resourceId}`, accessToken);
         console.log(`[Webhook] Successfully fetched authorized payment '${resourceId}': status = ${mpData.status}`);
-        
+
         preapprovalId = mpData.preapproval_id;
       } else if (resolvedTopic === "preapproval_plan") {
         mpData = await fetchMp(`/preapproval_plan/${resourceId}`, accessToken);
