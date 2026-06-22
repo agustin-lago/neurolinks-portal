@@ -27,6 +27,34 @@ export async function POST(request) {
     if (selectedLines < 1) selectedLines = 1;
     if (selectedLines > 3) selectedLines = 3;
 
+    // Fetch current client state to decide if we preserve existing tokens/URLs (same plan_tipo)
+    let currentClient = null;
+    if (id) {
+      const { data } = await supabase
+        .from("clientes")
+        .select("id, plan_tipo, tokens_backoffice, deployment_urls, token_backoffice, deployment_url")
+        .eq("id", id)
+        .single();
+      currentClient = data;
+    } else {
+      const { data } = await supabase
+        .from("clientes")
+        .select("id, plan_tipo, tokens_backoffice, deployment_urls, token_backoffice, deployment_url")
+        .eq("auth_user_id", user.id)
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      currentClient = data;
+    }
+
+    const isSamePlanType = currentClient && currentClient.plan_tipo === selectedPlanTipo;
+    const tokens = isSamePlanType ? (currentClient.tokens_backoffice || []) : [];
+    const urls = isSamePlanType ? (currentClient.deployment_urls || []) : [];
+    const tokenSingle = isSamePlanType ? currentClient.token_backoffice : null;
+    const urlSingle = isSamePlanType ? currentClient.deployment_url : null;
+    const targetClientId = currentClient ? currentClient.id : null;
+
     // Get pricing and plan name
     const planConfig = PLANS_PRICING[selectedPlanTipo][selectedLines] || PLANS_PRICING.masivo_meta[1];
 
@@ -39,32 +67,21 @@ export async function POST(request) {
         plan: planConfig.nombre,
         abono: planConfig.precio,
         backoffice_activado: false,
-        deployment_url: null,
-        deployment_urls: [],
-        tokens_backoffice: [],
-        token_backoffice: null,
+        deployment_url: urlSingle,
+        deployment_urls: urls,
+        tokens_backoffice: tokens,
+        token_backoffice: tokenSingle,
         mp_preapproval_id: null,
         updated_at: new Date().toISOString(),
-      })
-      .eq("auth_user_id", user.id);
+      });
 
-    if (id) {
-      updateQuery = updateQuery.eq("id", id).select("id, plan_tipo, lineas_cantidad, plan, abono").single();
+    if (targetClientId) {
+      updateQuery = updateQuery.eq("id", targetClientId);
     } else {
-      // Fallback to first row
-      const { data: firstClient } = await supabase
-        .from("clientes")
-        .select("id")
-        .eq("auth_user_id", user.id)
-        .limit(1)
-        .single();
-      
-      if (firstClient) {
-        updateQuery = updateQuery.eq("id", firstClient.id).select("id, plan_tipo, lineas_cantidad, plan, abono").single();
-      } else {
-        updateQuery = updateQuery.select("id, plan_tipo, lineas_cantidad, plan, abono").single();
-      }
+      updateQuery = updateQuery.eq("auth_user_id", user.id);
     }
+
+    updateQuery = updateQuery.select("id, plan_tipo, lineas_cantidad, plan, abono").single();
 
     const { data: updatedClient, error } = await updateQuery;
 
