@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import AdminMercadoPago from "@/components/portal/AdminMercadoPago";
+import PortalPageWrapper from "@/components/portal/layout/PortalPageWrapper";
 
 export const metadata = { title: "Panel Admin Mercado Pago | Neurolinks" };
 
@@ -22,8 +23,9 @@ export default async function AdminMercadoPagoPage() {
   }
 
   return (
-    <div className="min-h-screen py-10 px-4 max-w-6xl mx-auto">
+    <PortalPageWrapper isUserAdmin={isAdmin} className="max-w-6xl mx-auto w-full px-6 py-12">
       <AdminMercadoPago />
-    </div>
+    </PortalPageWrapper>
   );
 }
+

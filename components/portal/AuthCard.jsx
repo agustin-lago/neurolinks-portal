@@ -112,17 +112,6 @@ function LoginForm({ onSwitch, onForgot }) {
       setError(parseError(error.message));
       setLoading(false);
     } else {
-      // 1. Update user metadata with plain_password
-      try {
-        await supabase.auth.updateUser({
-          data: { plain_password: contrasena }
-        });
-        console.log("[LoginForm] Updated user metadata plain_password.");
-      } catch (metaErr) {
-        console.error("[LoginForm] Error updating user metadata plain_password:", metaErr);
-      }
-
-      // 2. Sync ADMIN_USER and ADMIN_PASS variables in settings table for the client's projects
       try {
         if (user) {
           const { data: clientRows } = await supabase
@@ -177,7 +166,7 @@ function LoginForm({ onSwitch, onForgot }) {
     setLoading(true);
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: `${window.location.origin}/auth/callback?next=/portal/dashboard` },
     });
   };
 
@@ -240,15 +229,15 @@ function RegisterForm({ onSwitch }) {
   const [success, setSuccess]   = useState("");
   const supabase = createClient();
 
-  const onSubmit = async ({ nombre, apellido, email, telefono, contrasena, proyecto }) => {
+  const onSubmit = async ({ nombre, empresa, email, telefono, contrasena }) => {
     setLoading(true);
     setError("");
     const { error } = await supabase.auth.signUp({
       email,
       password: contrasena,
       options: {
-        data: { nombre, apellido, telefono, proyecto, plain_password: contrasena },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: { nombre, empresa: empresa || "", telefono, plain_password: "ENCRIPTADA" },
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/portal/dashboard`,
       },
     });
     if (error) {
@@ -263,7 +252,7 @@ function RegisterForm({ onSwitch }) {
     setLoading(true);
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: `${window.location.origin}/auth/callback?next=/portal/dashboard` },
     });
   };
 
@@ -280,10 +269,10 @@ function RegisterForm({ onSwitch }) {
       {!success && (
         <>
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Nombre"   placeholder="Juan"   error={errors.nombre?.message}
-              {...register("nombre",   { required: "Requerido" })} />
-            <Input label="Apellido" placeholder="García" error={errors.apellido?.message}
-              {...register("apellido", { required: "Requerido" })} />
+            <Input label="Nombre Completo" placeholder="Ej. Juan Pérez" error={errors.nombre?.message}
+              {...register("nombre", { required: "Requerido" })} />
+            <Input label="Empresa (Opcional)" placeholder="Ej. Neurolinks" error={errors.empresa?.message}
+              {...register("empresa")} />
           </div>
 
           <Input label="Email" type="email" placeholder="tu@email.com" error={errors.email?.message}
@@ -295,9 +284,6 @@ function RegisterForm({ onSwitch }) {
             <Input label="Contraseña" type="password" placeholder="••••••••" error={errors.contrasena?.message}
               {...register("contrasena", { required: "Requerida", minLength: { value: 6, message: "Mín. 6 caracteres" } })} />
           </div>
-
-          <Input label="Nombre del proyecto" placeholder="Mi proyecto" error={errors.proyecto?.message}
-            {...register("proyecto", { required: "El nombre del proyecto es obligatorio" })} />
 
           <button type="submit" disabled={loading}
             className="btn-gradient w-full py-3 rounded-xl font-heading font-semibold text-sm disabled:opacity-60 disabled:cursor-not-allowed">

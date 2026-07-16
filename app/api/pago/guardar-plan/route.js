@@ -1,16 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-const PLANS_PRICING = {
-  masivo_meta: {
-    1: { nombre: "Envíos Masivos - 1 Línea", precio: 63000 },
-    2: { nombre: "Envíos Masivos - 2 Líneas", precio: 99000 },
-    3: { nombre: "Envíos Masivos - 3 Líneas", precio: 120000 },
-  },
-  chatbot_ia: {
-    1: { nombre: "Chatbot IA - Atención Clientes", precio: 210000 },
-  }
-};
+
 
 export async function POST(request) {
   try {
@@ -55,8 +46,16 @@ export async function POST(request) {
     const urlSingle = isSamePlanType ? currentClient.deployment_url : null;
     const targetClientId = currentClient ? currentClient.id : null;
 
-    // Get pricing and plan name
-    const planConfig = PLANS_PRICING[selectedPlanTipo][selectedLines] || PLANS_PRICING.masivo_meta[1];
+    // Get pricing and plan name from DB
+    const { data: dbPlan } = await supabase
+      .from('catalogo_planes')
+      .select('nombre, precio')
+      .eq('plan_tipo', selectedPlanTipo)
+      .eq('lineas_cantidad', selectedLines)
+      .eq('activo', true)
+      .maybeSingle();
+
+    const planConfig = dbPlan || { nombre: 'Standard + 1', precio: 63000 };
 
     // Update targeted client row in DB
     let updateQuery = supabase

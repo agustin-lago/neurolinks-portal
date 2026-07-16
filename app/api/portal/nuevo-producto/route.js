@@ -1,16 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-const PLANS_PRICING = {
-  masivo_meta: {
-    1: { nombre: "Envíos Masivos - 1 Línea", precio: 63000 },
-    2: { nombre: "Envíos Masivos - 2 Líneas", precio: 99000 },
-    3: { nombre: "Envíos Masivos - 3 Líneas", precio: 120000 },
-  },
-  chatbot_ia: {
-    1: { nombre: "Chatbot IA - Atención Clientes", precio: 210000 },
-  }
-};
+
 
 export async function POST(request) {
   try {
@@ -21,10 +12,10 @@ export async function POST(request) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const { proyecto_slug, empresa } = await request.json().catch(() => ({}));
+    const { proyecto_slug } = await request.json().catch(() => ({}));
 
-    if (!proyecto_slug || !empresa) {
-      return NextResponse.json({ error: "Faltan campos requeridos (slug, empresa)" }, { status: 400 });
+    if (!proyecto_slug) {
+      return NextResponse.json({ error: "Falta el campo requerido (slug)" }, { status: 400 });
     }
 
     // Clean and validate slug (lowercase, alphanumeric and hyphens only)
@@ -60,34 +51,84 @@ export async function POST(request) {
     // Resolve default plan configuration (will be re-selected on the payment step)
     const selectedPlanTipo = "masivo_meta";
     const selectedLines = 1;
-    const planConfig = PLANS_PRICING[selectedPlanTipo][selectedLines];
+    
+    // Get pricing and plan name from DB
+    const { data: dbPlan } = await supabase
+      .from('catalogo_planes')
+      .select('nombre, precio')
+      .eq('plan_tipo', selectedPlanTipo)
+      .eq('lineas_cantidad', selectedLines)
+      .eq('activo', true)
+      .maybeSingle();
+      
+    const planConfig = dbPlan || { nombre: 'Standard + 1', precio: 63000 };
 
-    // Insert new product record in Supabase
-    const { data: newClient, error: insertError } = await supabase
+    // Comprobar si ya existe una fila vacía creada por el administrador para este usuario
+    const { data: existingEmptyClient } = await supabase
       .from("clientes")
-      .insert({
-        auth_user_id: user.id,
-        email: user.email,
-        nombre: user.user_metadata?.nombre ?? user.email.split("@")[0],
-        telefono: user.user_metadata?.telefono ?? "",
-        proyecto_slug: cleanSlug,
-        empresa: empresa.trim(),
-        plan_tipo: selectedPlanTipo,
-        lineas_cantidad: selectedLines,
-        plan: planConfig.nombre,
-        abono: planConfig.precio,
-        backoffice_activado: false,
-        deployment_url: null,
-        deployment_urls: [],
-        tokens_backoffice: [],
-        token_backoffice: null,
-        mp_preapproval_id: null,
-        is_admin: isNewClientAdmin,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+      .select("id")
+      .eq("auth_user_id", user.id)
+      .is("proyecto_slug", null)
+      .limit(1)
+      .maybeSingle();
+
+    let newClient;
+    let insertError;
+
+    if (existingEmptyClient) {
+      // Actualizar la fila vacía existente en lugar de duplicar
+      const { data, error } = await supabase
+        .from("clientes")
+        .update({
+          email: user.email,
+          nombre: user.user_metadata?.nombre || user.user_metadata?.full_name || user.user_metadata?.name || user.email.split("@")[0],
+          telefono: user.user_metadata?.telefono ?? "",
+          proyecto_slug: cleanSlug,
+          empresa: user.user_metadata?.empresa || "",
+          plan_tipo: selectedPlanTipo,
+          lineas_cantidad: selectedLines,
+          plan: planConfig.nombre,
+          abono: planConfig.precio,
+          is_admin: isNewClientAdmin,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", existingEmptyClient.id)
+        .select()
+        .single();
+        
+      newClient = data;
+      insertError = error;
+    } else {
+      // Insert new product record in Supabase
+      const { data, error } = await supabase
+        .from("clientes")
+        .insert({
+          auth_user_id: user.id,
+          email: user.email,
+          nombre: user.user_metadata?.nombre || user.user_metadata?.full_name || user.user_metadata?.name || user.email.split("@")[0],
+          telefono: user.user_metadata?.telefono ?? "",
+          proyecto_slug: cleanSlug,
+          empresa: user.user_metadata?.empresa || "",
+          plan_tipo: selectedPlanTipo,
+          lineas_cantidad: selectedLines,
+          plan: planConfig.nombre,
+          abono: planConfig.precio,
+          backoffice_activado: false,
+          deployment_url: null,
+          deployment_urls: [],
+          tokens_backoffice: [],
+          token_backoffice: null,
+          mp_preapproval_id: null,
+          is_admin: isNewClientAdmin,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+        
+      newClient = data;
+      insertError = error;
+    }
 
     if (insertError) {
       console.error("[Nuevo Producto] Database insert error:", insertError);
@@ -95,6 +136,17 @@ export async function POST(request) {
     }
 
     console.log(`[Nuevo Producto] Successfully created product ${newClient.id} for user ${user.id}`);
+    
+    // Delete any duplicate row the DB trigger may have created for this auth_user_id
+    if (newClient?.id && user.id) {
+      await supabase
+        .from("clientes")
+        .delete()
+        .eq("auth_user_id", user.id)
+        .neq("id", newClient.id)
+        .is("proyecto_slug", null);
+    }
+    
     return NextResponse.json({ success: true, client: newClient });
   } catch (error) {
     console.error("[Nuevo Producto] Critical error:", error);

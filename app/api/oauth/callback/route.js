@@ -5,25 +5,25 @@ const STANDARDIZED_PLANS = [
   {
     plan_tipo: "masivo_meta",
     lineas_cantidad: 1,
-    nombre: "Envíos Masivos y API de META - 1 Línea",
+    nombre: "Standard + 1",
     monto: 63000,
   },
   {
     plan_tipo: "masivo_meta",
     lineas_cantidad: 2,
-    nombre: "Envíos Masivos y API de META - 2 Líneas",
+    nombre: "Standard + 2",
     monto: 99000,
   },
   {
     plan_tipo: "masivo_meta",
     lineas_cantidad: 3,
-    nombre: "Envíos Masivos y API de META - 3 Líneas",
+    nombre: "Standard + 3",
     monto: 120000,
   },
   {
     plan_tipo: "chatbot_ia",
     lineas_cantidad: 1,
-    nombre: "Chatbot IA - Atención Clientes",
+    nombre: "Plus",
     monto: 210000,
   }
 ];

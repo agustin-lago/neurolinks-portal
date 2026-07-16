@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-
+import PortalPageWrapper from "./layout/PortalPageWrapper";
+import GlassCard from "../ui/GlassCard";
 
 const FEATURES_MAP = {
   masivo_meta: [
@@ -43,16 +44,6 @@ function CheckIcon() {
 export default function PagoClient({ cliente, planesPrincipales = [], isAdmin = false }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
-  const handleLogout = async () => {
-    try {
-      const supabase = createClient();
-      await supabase.auth.signOut();
-      window.location.href = "/portal";
-    } catch (err) {
-      console.error("Error signing out:", err);
-    }
-  };
   
   // Set defaults: plan_tipo = 'masivo_meta', lineas_cantidad = 1 as per user requirements
   const [activePlan, setActivePlan] = useState("masivo_meta");
@@ -84,7 +75,7 @@ export default function PagoClient({ cliente, planesPrincipales = [], isAdmin = 
 
   const handlePay = async () => {
     if (region === "INT") {
-      const planName = activePlan === "chatbot_ia" ? "Chatbot IA" : `Envíos Masivos - ${linesCount} Línea(s)`;
+      const planName = activePlan === "chatbot_ia" ? "Plus" : `Standard + ${linesCount}`;
       const message = `Hola! Seleccioné el plan "${planName}" y quiero realizar mi pago desde el exterior (Resto del Mundo) vía PayPal. ¿Me ayudan con la activación manual?`;
       window.open(`https://wa.me/5491170644247?text=${encodeURIComponent(message)}`, "_blank");
       return;
@@ -156,18 +147,8 @@ export default function PagoClient({ cliente, planesPrincipales = [], isAdmin = 
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto relative pt-12 md:pt-4">
-      {/* Logout button */}
-      <div className="absolute top-0 right-0 z-20">
-        <button
-          onClick={handleLogout}
-          className="px-4 py-2 text-[10px] md:text-xs font-semibold text-white/40 hover:text-white/80 transition-colors bg-white/[0.02] border border-white/[0.08] hover:border-white/[0.15] rounded-xl backdrop-blur-md"
-        >
-          Cerrar sesión
-        </button>
-      </div>
-
-      {/* Header */}
+    <PortalPageWrapper isUserAdmin={isAdmin} className="items-center justify-center">
+      <div className="w-full max-w-4xl">
       <div className="text-center mb-8">
         <p className="text-white/25 text-xs font-heading font-semibold tracking-widest uppercase mb-3 animate-pulse">
           Completar suscripción
@@ -233,7 +214,7 @@ export default function PagoClient({ cliente, planesPrincipales = [], isAdmin = 
               )}
             </div>
             <h3 className="font-heading font-extrabold text-white text-lg mb-1.5">
-              Envíos Masivos & API META
+              Standard + {linesCount}
             </h3>
             <p className="text-white/45 text-xs leading-relaxed">
               Ideal para marketing y notificaciones masivas automatizadas conectadas al canal oficial de WhatsApp de Meta.
@@ -276,7 +257,7 @@ export default function PagoClient({ cliente, planesPrincipales = [], isAdmin = 
               )}
             </div>
             <h3 className="font-heading font-extrabold text-white text-lg mb-1.5">
-              Chatbot Inteligencia Artificial
+              Plus
             </h3>
             <p className="text-white/45 text-xs leading-relaxed">
               Atención inteligente entrenada con IA para resolver dudas de clientes, cotizar y derivar chats sin intervenciones.
@@ -433,6 +414,7 @@ export default function PagoClient({ cliente, planesPrincipales = [], isAdmin = 
           Contactanos
         </a>
       </p>
-    </div>
+      </div>
+    </PortalPageWrapper>
   );
 }

@@ -150,6 +150,10 @@ export default function PortalFlow({ initialStep, cliente }) {
     setStep(initialStep);
   }, [initialStep]);
 
+  if (step === "pago") {
+    return <PagoClient cliente={cliente} />;
+  }
+
   return (
     <div className="min-h-screen flex overflow-x-hidden">
 

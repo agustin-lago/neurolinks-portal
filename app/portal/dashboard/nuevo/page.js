@@ -118,7 +118,7 @@ export default function NuevoProductoPage() {
                 {/* Empresa / Proyecto */}
                 <div>
                   <label className="block text-[11px] font-heading font-semibold tracking-wide uppercase text-white/40 mb-1.5">
-                    Nombre del Proyecto / Empresa
+                    Nombre del Proyecto
                   </label>
                   <input
                     type="text"

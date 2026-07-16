@@ -9,5 +9,14 @@ export default async function PerfilPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/portal");
 
-  return <PerfilClient user={user} />;
+  const { data: clientData } = await supabase
+    .from("clientes")
+    .select("is_admin, nombre, empresa, telefono")
+    .eq("auth_user_id", user.id)
+    .limit(1)
+    .single();
+
+  const isUserAdmin = !!(clientData?.is_admin);
+
+  return <PerfilClient user={user} isUserAdmin={isUserAdmin} clientDbData={clientData} />;
 }

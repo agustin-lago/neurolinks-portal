@@ -29,7 +29,11 @@ export default async function PortalPage({ searchParams }) {
   const params          = await searchParams;
   const paymentApproved = params?.collection_status === "approved";
 
-  const initialStep = !user ? "auth" : paymentApproved ? "polling" : "pago";
+  if (user && !paymentApproved) {
+    redirect("/portal/dashboard");
+  }
+
+  const initialStep = !user ? "auth" : "polling";
 
   return <PortalFlow initialStep={initialStep} cliente={cliente} />;
 }

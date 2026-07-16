@@ -182,7 +182,7 @@ export async function POST(request) {
         "Authorization": `Bearer ${process.env.MP_ACCESS_TOKEN}`,
       },
       body: JSON.stringify({
-        reason: cliente.plan ?? "Envíos Masivos - 1 Línea",
+        reason: cliente.plan ?? "Standard + 1",
         auto_recurring: {
           frequency: 1,
           frequency_type: "months",

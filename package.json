@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "dev:test": "env-cmd -f .env.local_test next dev",
+    "dev": "next dev -p 3001",
+    "dev:test": "env-cmd -f .env.local_test next dev -p 3001",
     "dev:tunnel": "node tunnel.mjs",
     "dev:tunnel:test": "env-cmd -f .env.local_test node tunnel.mjs",
     "build": "next build",
-    "start": "next start"
+    "start": "next start -p 3001"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
@@ -19,6 +19,7 @@
     "framer-motion": "^12.38.0",
     "mercadopago": "^2.12.1",
     "next": "16.2.6",
+    "pg": "^8.22.0",
     "postcss": "^8.5.14",
     "react": "19.2.4",
     "react-dom": "19.2.4",
