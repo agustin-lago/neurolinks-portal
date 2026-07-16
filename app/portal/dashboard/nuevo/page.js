@@ -7,7 +7,7 @@ import Image from "next/image";
 
 export default function NuevoProductoPage() {
   const router = useRouter();
-  const [empresa, setEmpresa] = useState("");
+  const [proyectoNombre, setProyectoNombre] = useState("");
   const [slug, setSlug] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -20,7 +20,7 @@ export default function NuevoProductoPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!empresa.trim() || !slug.trim()) {
+    if (!proyectoNombre.trim() || !slug.trim()) {
       setError("Completá todos los campos requeridos.");
       return;
     }
@@ -34,7 +34,7 @@ export default function NuevoProductoPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           proyecto_slug: slug,
-          empresa: empresa
+          proyecto_nombre: proyectoNombre
         })
       });
 
@@ -124,8 +124,8 @@ export default function NuevoProductoPage() {
                     type="text"
                     required
                     placeholder="Ej. Neurolinks Ventas"
-                    value={empresa}
-                    onChange={(e) => setEmpresa(e.target.value)}
+                    value={proyectoNombre}
+                    onChange={(e) => setProyectoNombre(e.target.value)}
                     className="w-full bg-white/[0.03] border border-white/[0.08] hover:border-white/[0.14] focus:border-accent/50 rounded-xl px-4 py-2.5 text-white placeholder:text-white/20 text-sm outline-none transition-all duration-200"
                   />
                 </div>

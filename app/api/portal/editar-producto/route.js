@@ -31,14 +31,14 @@ export async function POST(request) {
 
     const adminDb = createAdminClient();
 
-    // 1. Obtener el cliente para verificar propiedad
-    const { data: cliente, error: fetchError } = await adminDb
-      .from("clientes")
-      .select("id, auth_user_id, backoffice_activado, proyecto_slug")
+    // 1. Obtener la suscripción para verificar propiedad
+    const { data: suscripcion, error: fetchError } = await adminDb
+      .from("suscripciones_proyectos")
+      .select("id, backoffice_activado, proyecto_slug, proyecto_nombre, clientes!inner(auth_user_id)")
       .eq("id", id)
       .single();
 
-    if (fetchError || !cliente) {
+    if (fetchError || !suscripcion) {
       return NextResponse.json({ error: "Instancia no encontrada" }, { status: 404 });
     }
 
@@ -55,7 +55,7 @@ export async function POST(request) {
       isUserAdmin = true;
     }
 
-    const isOwner = cliente.auth_user_id === user.id;
+    const isOwner = suscripcion.clientes?.auth_user_id === user.id;
 
     if (!isOwner && !isUserAdmin) {
       return NextResponse.json({ error: "No tienes permisos para modificar este producto" }, { status: 403 });
@@ -72,7 +72,7 @@ export async function POST(request) {
       }
 
       // Restricción de seguridad: no permitir cambiar el slug de una instancia activa si no es admin
-      if (slugCleaned !== cliente.proyecto_slug && cliente.backoffice_activado && !isUserAdmin) {
+      if (slugCleaned !== suscripcion.proyecto_slug && suscripcion.backoffice_activado && !isUserAdmin) {
         return NextResponse.json({ 
           error: "Por razones de seguridad, no puedes cambiar el slug de una instancia activa. Contacta al administrador." 
         }, { status: 400 });
@@ -103,7 +103,7 @@ export async function POST(request) {
       updated_at: new Date().toISOString()
     };
 
-    if (empresa !== undefined) updateFields.empresa = empresa.trim();
+    if (empresa !== undefined) updateFields.proyecto_nombre = empresa.trim(); // Frontend still sends 'empresa', map to 'proyecto_nombre'
     if (proyecto_slug !== undefined) updateFields.proyecto_slug = proyecto_slug.trim().toLowerCase();
     if (finalUrl !== null || (deployment_url === "")) updateFields.deployment_url = finalUrl;
     if (finalUrls.length > 0 || (deployment_urls && deployment_urls.length === 0)) updateFields.deployment_urls = finalUrls;
@@ -112,7 +112,7 @@ export async function POST(request) {
     }
 
     const { error: updateError } = await adminDb
-      .from("clientes")
+      .from("suscripciones_proyectos")
       .update(updateFields)
       .eq("id", id);
 

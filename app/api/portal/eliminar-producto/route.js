@@ -19,19 +19,19 @@ export async function POST(request) {
       return NextResponse.json({ error: "Falta el ID del producto a eliminar" }, { status: 400 });
     }
 
-    // 1. Fetch client to verify ownership
-    const { data: cliente, error: fetchError } = await supabase
-      .from("clientes")
-      .select("id, auth_user_id, backoffice_activado, mp_preapproval_id, token_backoffice, tokens_backoffice, deployment_url, deployment_urls, plan_tipo, vendedor_id, proyecto_slug, lineas_cantidad")
+    // 1. Fetch subscription to verify ownership
+    const { data: suscripcion, error: fetchError } = await supabase
+      .from("suscripciones_proyectos")
+      .select("id, backoffice_activado, mp_preapproval_id, token_backoffice, tokens_backoffice, deployment_url, deployment_urls, plan_tipo, lineas_cantidad, proyecto_slug, clientes!inner(auth_user_id, vendedor_id)")
       .eq("id", id)
-      .eq("auth_user_id", user.id)
+      .eq("clientes.auth_user_id", user.id)
       .single();
 
-    if (fetchError || !cliente) {
+    if (fetchError || !suscripcion) {
       return NextResponse.json({ error: "Instancia no encontrada o no pertenece a tu usuario" }, { status: 404 });
     }
 
-    const isActiveOrDeploying = cliente.backoffice_activado || cliente.mp_preapproval_id;
+    const isActiveOrDeploying = suscripcion.backoffice_activado || suscripcion.mp_preapproval_id;
 
     if (isActiveOrDeploying && !forceDeleteActive) {
       return NextResponse.json({ 
@@ -44,15 +44,15 @@ export async function POST(request) {
     // 2. If active or deploying, trigger teardown of external resources
     if (isActiveOrDeploying) {
       // 2.1 Cancel Mercado Pago Subscription
-      if (cliente.mp_preapproval_id) {
-        console.log(`[Teardown] Canceling preapproval: ${cliente.mp_preapproval_id}`);
+      if (suscripcion.mp_preapproval_id) {
+        console.log(`[Teardown] Canceling preapproval: ${suscripcion.mp_preapproval_id}`);
         // Fetch seller token
         let sellerToken = null;
-        if (cliente.vendedor_id) {
+        if (suscripcion.clientes?.vendedor_id) {
           const { data: seller } = await adminDb
             .from("mp_vendedores")
             .select("access_token")
-            .eq("id", cliente.vendedor_id)
+            .eq("id", suscripcion.clientes.vendedor_id)
             .single();
           if (seller) sellerToken = seller.access_token;
         }
@@ -70,7 +70,7 @@ export async function POST(request) {
         if (sellerToken) mpTokens.push({ name: "Seller Token", value: sellerToken });
         if (mainToken) mpTokens.push({ name: "Main Token", value: mainToken });
 
-        const url = `https://api.mercadopago.com/preapproval/${cliente.mp_preapproval_id}`;
+        const url = `https://api.mercadopago.com/preapproval/${suscripcion.mp_preapproval_id}`;
         let mpCancelled = false;
 
         for (const token of mpTokens) {
@@ -86,7 +86,7 @@ export async function POST(request) {
             });
             const mpData = await mpRes.json();
             if (mpRes.ok) {
-              console.log(`[Teardown] ✅ Preapproval ${cliente.mp_preapproval_id} cancelled successfully using ${token.name}.`);
+              console.log(`[Teardown] ✅ Preapproval ${suscripcion.mp_preapproval_id} cancelled successfully using ${token.name}.`);
               mpCancelled = true;
               break;
             } else {
@@ -98,15 +98,15 @@ export async function POST(request) {
         }
 
         if (!mpCancelled) {
-          console.warn(`[Teardown] Could not cancel subscription ${cliente.mp_preapproval_id} in MP. Proceeding with remaining steps...`);
+          console.warn(`[Teardown] Could not cancel subscription ${suscripcion.mp_preapproval_id} in MP. Proceeding with remaining steps...`);
         }
       }
 
       // 2.2 Delete Railway project(s)
       const projectIds = new Set();
-      if (cliente.token_backoffice) projectIds.add(cliente.token_backoffice);
-      if (cliente.tokens_backoffice?.length) {
-        cliente.tokens_backoffice.forEach(tid => {
+      if (suscripcion.token_backoffice) projectIds.add(suscripcion.token_backoffice);
+      if (suscripcion.tokens_backoffice?.length) {
+        suscripcion.tokens_backoffice.forEach(tid => {
           if (tid) projectIds.add(tid);
         });
       }
@@ -121,11 +121,11 @@ export async function POST(request) {
 
       // 2.3 Delete Hostinger DNS records
       const slugs = new Set();
-      if (cliente.proyecto_slug) {
-        slugs.add(cliente.proyecto_slug);
-        if (cliente.lineas_cantidad > 1) {
-          for (let i = 1; i <= cliente.lineas_cantidad; i++) {
-            slugs.add(`${cliente.proyecto_slug}-linea${i}`);
+      if (suscripcion.proyecto_slug) {
+        slugs.add(suscripcion.proyecto_slug);
+        if (suscripcion.lineas_cantidad > 1) {
+          for (let i = 1; i <= suscripcion.lineas_cantidad; i++) {
+            slugs.add(`${suscripcion.proyecto_slug}-linea${i}`);
           }
         }
       }
@@ -162,10 +162,10 @@ export async function POST(request) {
       await adminDb.from("tickets").delete().eq("cliente_id", id);
     }
 
-    // 3. Perform Soft Delete on the client record
-    console.log(`[Teardown] Soft-deleting client record: ${id}`);
+    // 3. Perform Soft Delete on the subscription record
+    console.log(`[Teardown] Soft-deleting subscription record: ${id}`);
     const { error: deleteError } = await adminDb
-      .from("clientes")
+      .from("suscripciones_proyectos")
       .update({
         is_deleted: true,
         backoffice_activado: false,
@@ -186,11 +186,11 @@ export async function POST(request) {
     console.log(`[Teardown] Successfully soft-deleted product ${id} for user ${user.id}`);
 
     // Recalcular suscripciones activas del plan si el cliente estaba activo y tenía vendedor
-    if (cliente.backoffice_activado && cliente.vendedor_id) {
+    if (suscripcion.backoffice_activado && suscripcion.clientes?.vendedor_id) {
       await recalculatePlanSubscriptions(
-        cliente.vendedor_id,
-        cliente.plan_tipo,
-        cliente.lineas_cantidad,
+        suscripcion.clientes.vendedor_id,
+        suscripcion.plan_tipo,
+        suscripcion.lineas_cantidad,
         adminDb
       );
     }

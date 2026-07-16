@@ -12,21 +12,27 @@ export async function POST(request) {
     const body = await request.json().catch(() => ({}));
     const targetId = body?.id;
 
-    // 1. Fetch targeted client settings
+    // 1. Fetch targeted client subscription settings
     let query = supabase
-      .from("clientes")
-      .select("id, plan_tipo, lineas_cantidad, plan, abono, vendedor_id")
-      .eq("auth_user_id", user.id);
+      .from("suscripciones_proyectos")
+      .select(`
+        id, plan_tipo, lineas_cantidad, plan, abono,
+        clientes!inner ( id, auth_user_id, vendedor_id )
+      `)
+      .eq("clientes.auth_user_id", user.id);
 
     if (targetId) {
       query = query.eq("id", targetId).single();
     } else {
-      query = query.limit(1).single();
+      query = query.order("created_at", { ascending: false }).limit(1).single();
     }
 
-    const { data: cliente } = await query;
+    const { data: suscripcion } = await query;
 
-    if (!cliente) return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
+    if (!suscripcion) return NextResponse.json({ error: "Suscripción no encontrada" }, { status: 404 });
+
+    const clienteId = suscripcion.clientes.id;
+    let vendedorId = suscripcion.clientes.vendedor_id;
 
     // Dynamic Sandbox Redirect: Binds the customer ID as external_reference to your custom test plan
     const mainToken = (process.env.MP_ACCESS_TOKEN || "").replace(/['"]/g, "").trim();
@@ -35,7 +41,7 @@ export async function POST(request) {
       console.log("[Crear Pago] Running in SANDBOX/TEST mode. Creating test plan dynamically under configured seller.");
       try {
         const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-        const abonoPrice = Number(cliente.abono) || 100; // Real price or fallback $100 for test
+        const abonoPrice = Number(suscripcion.abono) || 100; // Real price or fallback $100 for test
 
         const mpPlanRes = await fetch("https://api.mercadopago.com/preapproval_plan", {
           method: "POST",
@@ -44,7 +50,7 @@ export async function POST(request) {
             "Authorization": `Bearer ${mainToken}`,
           },
           body: JSON.stringify({
-            reason: `Suscripción Neurolinks - ${cliente.plan || "Test"}`,
+            reason: `Suscripción Neurolinks - ${suscripcion.plan || "Test"}`,
             auto_recurring: {
               frequency: 1,
               frequency_type: "months",
@@ -57,7 +63,7 @@ export async function POST(request) {
 
         const mpPlanData = await mpPlanRes.json();
         if (mpPlanRes.ok && mpPlanData.init_point) {
-          const initPoint = `${mpPlanData.init_point}&external_reference=${cliente.id}`;
+          const initPoint = `${mpPlanData.init_point}&external_reference=${suscripcion.id}`;
           return NextResponse.json({ init_point: initPoint });
         } else {
           console.error("[Crear Pago Sandbox] MP Plan creation failed:", mpPlanData);
@@ -70,7 +76,6 @@ export async function POST(request) {
     }
 
     const adminDb = createAdminClient();
-    let vendedorId = cliente.vendedor_id;
 
     // 2. Load Balance Assignment (Round-Robin fallback) if vendedor is not yet assigned
     if (!vendedorId) {
@@ -98,7 +103,7 @@ export async function POST(request) {
         await supabase
           .from("clientes")
           .update({ vendedor_id: vendedorId })
-          .eq("id", cliente.id);
+          .eq("id", clienteId);
       }
     }
 
@@ -116,19 +121,19 @@ export async function POST(request) {
           .from("mp_planes")
           .select("init_point")
           .eq("vendedor_id", vendedorId)
-          .eq("plan_tipo", cliente.plan_tipo || "masivo_meta")
-          .eq("lineas_cantidad", cliente.lineas_cantidad || 1)
+          .eq("plan_tipo", suscripcion.plan_tipo || "masivo_meta")
+          .eq("lineas_cantidad", suscripcion.lineas_cantidad || 1)
           .single();
 
         if (plan?.init_point) {
-          const initPoint = `${plan.init_point}${plan.init_point.includes("?") ? "&" : "?"}external_reference=${cliente.id}`;
+          const initPoint = `${plan.init_point}${plan.init_point.includes("?") ? "&" : "?"}external_reference=${suscripcion.id}`;
           return NextResponse.json({ init_point: initPoint });
         }
 
         // Contingency fallback: If the specific plan doesn't exist, create it on-the-fly for this seller
         try {
-          const planName = cliente.plan || "Plan Neurolinks";
-          const abonoPrice = Number(cliente.abono) || 12000;
+          const planName = suscripcion.plan || "Plan Neurolinks";
+          const abonoPrice = Number(suscripcion.abono) || 12000;
           const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
           const mpPlanRes = await fetch("https://api.mercadopago.com/preapproval_plan", {
@@ -154,15 +159,15 @@ export async function POST(request) {
             // Save newly created plan in database
             await adminDb.from("mp_planes").insert({
               vendedor_id: vendedorId,
-              plan_tipo: cliente.plan_tipo || "masivo_meta",
-              lineas_cantidad: cliente.lineas_cantidad || 1,
+              plan_tipo: suscripcion.plan_tipo || "masivo_meta",
+              lineas_cantidad: suscripcion.lineas_cantidad || 1,
               mp_plan_id: mpPlanData.id,
               monto: abonoPrice,
               currency_id: "ARS",
               init_point: mpPlanData.init_point,
             });
 
-            const initPoint = `${mpPlanData.init_point}${mpPlanData.init_point.includes("?") ? "&" : "?"}external_reference=${cliente.id}`;
+            const initPoint = `${mpPlanData.init_point}${mpPlanData.init_point.includes("?") ? "&" : "?"}external_reference=${suscripcion.id}`;
             return NextResponse.json({ init_point: initPoint });
           }
         } catch (planCreateErr) {
@@ -173,7 +178,7 @@ export async function POST(request) {
 
     // 4. Legacy Single-Token Fallback: If no sellers are connected, create a regular Mercado Pago Preapproval Subscription
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-    const price = Number(String(cliente.abono ?? "63000").replace(/[^0-9.]/g, "")) || 63000;
+    const price = Number(String(suscripcion.abono ?? "63000").replace(/[^0-9.]/g, "")) || 63000;
 
     const mpPreapprovalRes = await fetch("https://api.mercadopago.com/preapproval", {
       method: "POST",
@@ -182,7 +187,7 @@ export async function POST(request) {
         "Authorization": `Bearer ${process.env.MP_ACCESS_TOKEN}`,
       },
       body: JSON.stringify({
-        reason: cliente.plan ?? "Standard + 1",
+        reason: suscripcion.plan ?? "Standard + 1",
         auto_recurring: {
           frequency: 1,
           frequency_type: "months",
@@ -191,7 +196,7 @@ export async function POST(request) {
         },
         payer_email: user.email || "test_user@clientesneurolinks.com",
         back_url: `${siteUrl}/portal/pago/exito`,
-        external_reference: String(cliente.id),
+        external_reference: String(suscripcion.id),
       }),
     });
 

@@ -11,9 +11,9 @@ export default async function PagoPage({ searchParams }) {
   if (!user) redirect("/portal");
 
   let query = supabase
-    .from("clientes")
-    .select("id, nombre, plan, abono, backoffice_activado, deployment_url, vendedor_id")
-    .eq("auth_user_id", user.id);
+    .from("suscripciones_proyectos")
+    .select("id, plan, abono, backoffice_activado, deployment_url, clientes!inner(nombre, vendedor_id)")
+    .eq("clientes.auth_user_id", user.id);
 
   if (id) {
     query = query.eq("id", id).single();
@@ -21,13 +21,13 @@ export default async function PagoPage({ searchParams }) {
     query = query.limit(1).single();
   }
 
-  const { data: cliente } = await query;
+  const { data: suscripcion } = await query;
 
-  if (!cliente) redirect("/portal/dashboard");
+  if (!suscripcion) redirect("/portal/dashboard");
 
   // Already paid — send directly to their backoffice
-  if (cliente?.backoffice_activado && cliente?.deployment_url) {
-    redirect(`https://${cliente.deployment_url}`);
+  if (suscripcion?.backoffice_activado && suscripcion?.deployment_url) {
+    redirect(`https://${suscripcion.deployment_url}`);
   }
 
   // Determine if the current user is admin (has at least one client row with is_admin = true)
@@ -40,7 +40,7 @@ export default async function PagoPage({ searchParams }) {
   // Fetch dynamic plans from the assigned seller (or fallback to principal seller) to show official subscription prices
   let planesPrincipales = [];
   try {
-    let sellerId = cliente.vendedor_id;
+    let sellerId = suscripcion.clientes?.vendedor_id;
 
     if (!sellerId) {
       // 1. Try to find the seller by the principal user_id '39957203' (from MP_ACCESS_TOKEN)
@@ -83,7 +83,7 @@ export default async function PagoPage({ searchParams }) {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
-      <PagoClient cliente={cliente} planesPrincipales={planesPrincipales} isAdmin={isAdmin} />
+      <PagoClient cliente={suscripcion} planesPrincipales={planesPrincipales} isAdmin={isAdmin} />
     </div>
   );
 }

@@ -18,33 +18,34 @@ export async function POST(request) {
     if (selectedLines < 1) selectedLines = 1;
     if (selectedLines > 3) selectedLines = 3;
 
-    // Fetch current client state to decide if we preserve existing tokens/URLs (same plan_tipo)
-    let currentClient = null;
+    // Fetch current subscription state to decide if we preserve existing tokens/URLs (same plan_tipo)
+    let currentSubscription = null;
     if (id) {
       const { data } = await supabase
-        .from("clientes")
-        .select("id, plan_tipo, tokens_backoffice, deployment_urls, token_backoffice, deployment_url")
+        .from("suscripciones_proyectos")
+        .select("id, plan_tipo, tokens_backoffice, deployment_urls, token_backoffice, deployment_url, clientes!inner(auth_user_id)")
         .eq("id", id)
+        .eq("clientes.auth_user_id", user.id)
         .single();
-      currentClient = data;
+      currentSubscription = data;
     } else {
       const { data } = await supabase
-        .from("clientes")
-        .select("id, plan_tipo, tokens_backoffice, deployment_urls, token_backoffice, deployment_url")
-        .eq("auth_user_id", user.id)
+        .from("suscripciones_proyectos")
+        .select("id, plan_tipo, tokens_backoffice, deployment_urls, token_backoffice, deployment_url, clientes!inner(auth_user_id)")
+        .eq("clientes.auth_user_id", user.id)
         .eq("is_deleted", false)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      currentClient = data;
+      currentSubscription = data;
     }
 
-    const isSamePlanType = currentClient && currentClient.plan_tipo === selectedPlanTipo;
-    const tokens = isSamePlanType ? (currentClient.tokens_backoffice || []) : [];
-    const urls = isSamePlanType ? (currentClient.deployment_urls || []) : [];
-    const tokenSingle = isSamePlanType ? currentClient.token_backoffice : null;
-    const urlSingle = isSamePlanType ? currentClient.deployment_url : null;
-    const targetClientId = currentClient ? currentClient.id : null;
+    const isSamePlanType = currentSubscription && currentSubscription.plan_tipo === selectedPlanTipo;
+    const tokens = isSamePlanType ? (currentSubscription.tokens_backoffice || []) : [];
+    const urls = isSamePlanType ? (currentSubscription.deployment_urls || []) : [];
+    const tokenSingle = isSamePlanType ? currentSubscription.token_backoffice : null;
+    const urlSingle = isSamePlanType ? currentSubscription.deployment_url : null;
+    const targetSubscriptionId = currentSubscription ? currentSubscription.id : null;
 
     // Get pricing and plan name from DB
     const { data: dbPlan } = await supabase
@@ -57,9 +58,9 @@ export async function POST(request) {
 
     const planConfig = dbPlan || { nombre: 'Standard + 1', precio: 63000 };
 
-    // Update targeted client row in DB
+    // Update targeted subscription row in DB
     let updateQuery = supabase
-      .from("clientes")
+      .from("suscripciones_proyectos")
       .update({
         plan_tipo: selectedPlanTipo,
         lineas_cantidad: selectedLines,
@@ -74,10 +75,11 @@ export async function POST(request) {
         updated_at: new Date().toISOString(),
       });
 
-    if (targetClientId) {
-      updateQuery = updateQuery.eq("id", targetClientId);
+    if (targetSubscriptionId) {
+      updateQuery = updateQuery.eq("id", targetSubscriptionId);
     } else {
-      updateQuery = updateQuery.eq("auth_user_id", user.id);
+      // If we couldn't find a subscription, return error
+      return NextResponse.json({ error: "Suscripción no encontrada." }, { status: 404 });
     }
 
     updateQuery = updateQuery.select("id, plan_tipo, lineas_cantidad, plan, abono").single();

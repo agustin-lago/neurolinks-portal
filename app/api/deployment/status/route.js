@@ -10,9 +10,9 @@ export async function GET(request) {
   if (!user) return NextResponse.json({ ready: false });
 
   let query = supabase
-    .from("clientes")
-    .select("backoffice_activado, deployment_url, railway_public_url, activated_at, updated_at")
-    .eq("auth_user_id", user.id);
+    .from("suscripciones_proyectos")
+    .select("backoffice_activado, deployment_url, railway_public_url, activated_at, updated_at, clientes!inner(auth_user_id)")
+    .eq("clientes.auth_user_id", user.id);
 
   if (id) {
     query = query.eq("id", id).single();
@@ -20,18 +20,18 @@ export async function GET(request) {
     query = query.limit(1).single();
   }
 
-  const { data: cliente } = await query;
-  const ready = !!(cliente?.backoffice_activado && (cliente?.deployment_url || cliente?.railway_public_url));
+  const { data: suscripcion } = await query;
+  const ready = !!(suscripcion?.backoffice_activado && (suscripcion?.deployment_url || suscripcion?.railway_public_url));
   
-  let targetUrl = cliente?.deployment_url ?? null;
+  let targetUrl = suscripcion?.deployment_url ?? null;
 
-  if (cliente?.backoffice_activado && cliente?.railway_public_url) {
-    const activationTime = cliente.activated_at ? new Date(cliente.activated_at) : new Date(cliente.updated_at);
+  if (suscripcion?.backoffice_activado && suscripcion?.railway_public_url) {
+    const activationTime = suscripcion.activated_at ? new Date(suscripcion.activated_at) : new Date(suscripcion.updated_at);
     const diffMs = Date.now() - activationTime.getTime();
     const fifteenMinutesMs = 15 * 60 * 1000;
 
     if (diffMs < fifteenMinutesMs) {
-      let pubUrl = cliente.railway_public_url;
+      let pubUrl = suscripcion.railway_public_url;
       if (pubUrl.startsWith("[")) {
         try {
           const parsed = JSON.parse(pubUrl);

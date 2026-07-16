@@ -123,7 +123,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
     setEditingClient(cliente);
     setEditForm({
       id: cliente.id,
-      empresa: cliente.empresa || "",
+      empresa: cliente.proyecto_nombre_db || getProjectName(cliente, 0),
       proyecto_slug: cliente.proyecto_slug || "",
       deployment_url: cliente.deployment_url || "",
       deployment_urls: cliente.deployment_urls ? [...cliente.deployment_urls] : [],
@@ -205,10 +205,10 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
         icon: 'success',
         title: '¡Eliminada!',
         text: 'La instancia fue eliminada correctamente.',
-        background: "#080c14",
+        background: "#0a1523",
         color: "#fff",
         customClass: { 
-          popup: "border border-white/[0.08] rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)]", 
+          popup: "bg-[#0a1523] border border-[#0099ff]/20 rounded-2xl shadow-[0_0_50px_rgba(0,153,255,0.18)]", 
           title: "font-heading font-bold text-lg text-white", 
           htmlContainer: "text-white/60 text-sm", 
           confirmButton: "px-5 py-2.5 text-xs font-semibold text-white bg-accent hover:bg-accent-light rounded-xl transition-all" 
@@ -219,10 +219,10 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
         icon: 'error',
         title: 'Error',
         text: err.message || "Error al eliminar la instancia",
-        background: "#080c14",
+        background: "#0a1523",
         color: "#fff",
         customClass: { 
-          popup: "border border-white/[0.08] rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)]", 
+          popup: "bg-[#0a1523] border border-[#0099ff]/20 rounded-2xl shadow-[0_0_50px_rgba(0,153,255,0.18)]", 
           title: "font-heading font-bold text-lg text-white", 
           htmlContainer: "text-white/60 text-sm", 
           confirmButton: "px-5 py-2.5 text-xs font-semibold text-white bg-accent hover:bg-accent-light rounded-xl transition-all" 
@@ -240,7 +240,6 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
       const result = await MySwal.fire({
         icon: 'warning',
         iconColor: '#ef4444',
-        title: '⚠️ ¡PELIGRO: Dar de baja instancia!',
         html: (
           <div className="text-left mt-2">
             <div className="text-white/80 text-xs mb-4 leading-relaxed bg-red-950/20 border border-red-500/20 p-4 rounded-xl space-y-2">
@@ -249,34 +248,31 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
               <div>• Se <strong>eliminará por completo el servidor</strong> en Railway.</div>
               <div>• Se <strong>borrarán permanentemente todos los chats y mensajes</strong>.</div>
               <div>• Se darán de baja los registros DNS.</div>
-              <div className="text-white/40 border-t border-white/[0.06] pt-2 mt-2">
-                ℹ️ El registro de la cuenta, logs de API e historial de pagos se conservarán por motivos administrativos.
-              </div>
             </div>
             <p className="text-white/60 text-xs mb-3">
-              Para confirmar la baja de <strong className="text-white">"{cliente.empresa || cliente.proyecto_slug}"</strong>, escribe el slug de proyecto <strong className="text-accent-light font-mono select-all">{cliente.proyecto_slug}</strong> a continuación:
+              Para confirmar la baja definitiva de <strong className="text-white">"{cliente.proyecto_nombre_db || getProjectName(cliente, 0)}"</strong>, por favor escribe el texto exacto <strong className="text-accent-light font-mono select-all">{cliente.proyecto_slug}</strong> en el cuadro de abajo:
             </p>
           </div>
         ),
         input: 'text',
         inputPlaceholder: cliente.proyecto_slug,
         inputAttributes: {
-          style: "background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); color: white; border-radius: 0.75rem; padding: 0.75rem 1rem; font-size: 0.875rem; font-family: monospace; outline: none; margin: 0; margin-top: 0.5rem; width: 100%; box-sizing: border-box;"
+          spellCheck: "false"
         },
         showCancelButton: true,
         confirmButtonText: "Eliminar definitivamente",
         cancelButtonText: "Cancelar",
         buttonsStyling: false,
-        background: "#080c14",
+        background: "#0a1523",
         color: "#fff",
         customClass: {
-          popup: "border border-white/[0.08] rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] !pb-6",
+          popup: "bg-[#0a1523] border border-[#0099ff]/20 rounded-2xl shadow-[0_0_50px_rgba(0,153,255,0.18)] !pb-6",
           title: "font-heading font-extrabold text-xl text-white pt-2",
           htmlContainer: "m-0 px-6",
           actions: "mt-6 flex justify-end gap-3 w-full px-6",
           cancelButton: "px-5 py-2.5 text-xs font-semibold text-white/50 hover:text-white transition-colors bg-white/[0.02] border border-white/[0.08] hover:border-white/[0.15] rounded-xl m-0",
           confirmButton: "px-5 py-2.5 text-xs font-semibold text-white bg-red-600 hover:bg-red-500 rounded-xl border border-red-500/50 shadow-[0_0_15px_rgba(220,38,38,0.3)] transition-all m-0 ml-3",
-          input: "mx-6 mt-2 w-auto",
+          input: "mx-auto w-[calc(100%-3rem)] bg-white/[0.04] !border border-white/[0.08] focus:!border-[#0099ff]/40 !shadow-none !ring-0 rounded-xl px-4 py-2.5 text-sm text-white placeholder-white/20 focus:outline-none font-mono",
         },
         preConfirm: (inputValue) => {
           if (inputValue !== cliente.proyecto_slug) {
@@ -329,9 +325,9 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
       try {
         const supabase = createClient();
         const { data: updated, error } = await supabase
-          .from("clientes")
-          .select("id, backoffice_activado, deployment_url, deployment_urls, mp_preapproval_id, plan, plan_tipo, lineas_cantidad, railway_public_url, activated_at, updated_at, observaciones")
-          .eq("auth_user_id", user.id)
+          .from("suscripciones_proyectos")
+          .select("id, backoffice_activado, deployment_url, deployment_urls, mp_preapproval_id, plan, plan_tipo, lineas_cantidad, railway_public_url, activated_at, updated_at, observaciones, clientes!inner(auth_user_id)")
+          .eq("clientes.auth_user_id", user.id)
           .eq("is_deleted", false);
 
         if (error) throw error;
@@ -757,7 +753,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
             className="absolute inset-0 bg-black/80 backdrop-blur-md"
             onClick={() => setEditingClient(null)}
           />
-          <div className="relative z-10 w-full max-w-lg bg-[#0a1523]/96 backdrop-blur-md rounded-2xl border border-[#0099ff]/20 p-6 shadow-2xl shadow-[0_0_50px_rgba(0,153,255,0.18)] overflow-y-auto max-h-[90vh]">
+          <div className="relative z-10 w-full max-w-lg bg-[#0a1523] rounded-2xl border border-[#0099ff]/20 p-6 shadow-2xl shadow-[0_0_50px_rgba(0,153,255,0.18)] overflow-y-auto max-h-[90vh]">
             <div className="flex items-center justify-between mb-4 border-b border-white/[0.05] pb-3">
               <h3 className="font-heading font-extrabold text-white text-lg">
                 Editar Información de la Instancia
@@ -783,17 +779,17 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
                 </div>
               )}
 
-              {/* Nombre de la Empresa */}
+              {/* Nombre del Proyecto */}
               <div>
                 <label className="block text-white/50 text-xs font-semibold mb-1.5 uppercase tracking-wider">
-                  Nombre de la Empresa / Organización
+                  Nombre del Proyecto
                 </label>
                 <input
                   type="text"
                   required
                   value={editForm.empresa}
                   onChange={(e) => setEditForm(prev => ({ ...prev, empresa: e.target.value }))}
-                  placeholder="Ej: Mi Empresa S.A."
+                  placeholder="Ej: Mi Proyecto"
                   className="w-full bg-white/[0.04] border border-white/[0.08] focus:border-accent/40 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/20 focus:outline-none"
                 />
               </div>

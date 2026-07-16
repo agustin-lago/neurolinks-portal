@@ -11,24 +11,24 @@ export async function register() {
       console.log("[Cron Sync Loop] Checking for pending client deployments...");
       try {
         const adminDb = createAdminClient();
-        const { data: pendingClients } = await adminDb
-          .from("clientes")
+        const { data: pendingSubscriptions } = await adminDb
+          .from("suscripciones_proyectos")
           .select("id, proyecto_slug")
           .eq("is_deleted", false)
           .eq("backoffice_activado", false)
           .not("token_backoffice", "is", null);
 
-        if (pendingClients && pendingClients.length > 0) {
-          console.log(`[Cron Sync Loop] Found ${pendingClients.length} pending client(s) to sync. Triggering...`);
-          for (const client of pendingClients) {
-            activateClientPortal(client.id, adminDb)
+        if (pendingSubscriptions && pendingSubscriptions.length > 0) {
+          console.log(`[Cron Sync Loop] Found ${pendingSubscriptions.length} pending subscription(s) to sync. Triggering...`);
+          for (const sub of pendingSubscriptions) {
+            activateClientPortal(sub.id, adminDb)
               .then((res) => {
                 if (!res?.ignored) {
-                  console.log(`[Cron Sync Loop] Synchronized client ${client.proyecto_slug} successfully.`);
+                  console.log(`[Cron Sync Loop] Synchronized subscription ${sub.proyecto_slug} successfully.`);
                 }
               })
               .catch((err) => {
-                console.error(`[Cron Sync Loop] Failed to sync client ${client.proyecto_slug}:`, err.message);
+                console.error(`[Cron Sync Loop] Failed to sync subscription ${sub.proyecto_slug}:`, err.message);
               });
           }
         }

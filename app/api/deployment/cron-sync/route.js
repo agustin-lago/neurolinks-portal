@@ -19,8 +19,8 @@ export async function GET(request) {
     console.log("[Cron Sync API] Fetching pending client deployments to sync...");
     const adminDb = createAdminClient();
 
-    const { data: pendingClients, error } = await adminDb
-      .from("clientes")
+    const { data: pendingSubscriptions, error } = await adminDb
+      .from("suscripciones_proyectos")
       .select("id, proyecto_slug")
       .eq("is_deleted", false)
       .eq("backoffice_activado", false)
@@ -31,17 +31,17 @@ export async function GET(request) {
     }
 
     const synced = [];
-    if (pendingClients && pendingClients.length > 0) {
-      for (const client of pendingClients) {
+    if (pendingSubscriptions && pendingSubscriptions.length > 0) {
+      for (const sub of pendingSubscriptions) {
         // Trigger activation asynchronously in background
-        activateClientPortal(client.id, adminDb)
+        activateClientPortal(sub.id, adminDb)
           .then((res) => {
-            console.log(`[Cron Sync API] Client ${client.proyecto_slug} sync result:`, res);
+            console.log(`[Cron Sync API] Subscription ${sub.proyecto_slug} sync result:`, res);
           })
           .catch((err) => {
-            console.error(`[Cron Sync API] Client ${client.proyecto_slug} sync failed:`, err.message);
+            console.error(`[Cron Sync API] Subscription ${sub.proyecto_slug} sync failed:`, err.message);
           });
-        synced.push({ id: client.id, slug: client.proyecto_slug });
+        synced.push({ id: sub.id, slug: sub.proyecto_slug });
       }
     }
 

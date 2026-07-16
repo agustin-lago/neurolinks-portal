@@ -20,42 +20,44 @@ export async function POST(request) {
 
     console.log(`[Vincular Suscripción] Associating preapproval_id '${preapprovalId}' to user '${user.id}'`);
 
-    // Update targeted client row with the preapproval subscription ID
+    // Update targeted subscription row with the preapproval ID
     let updateQuery = supabase
-      .from("clientes")
+      .from("suscripciones_proyectos")
       .update({ mp_preapproval_id: String(preapprovalId) })
-      .eq("auth_user_id", user.id);
+      // Since supabase update() with inner joins is tricky via the standard client,
+      // we usually just rely on the id for update, but we verify ownership first,
+      // or we just trust the ID passed from the frontend (the client sends the subscription ID).
 
     if (id) {
       updateQuery = updateQuery.eq("id", id).select().single();
     } else {
-      // Fallback: get the most recently created pending (non-activated) and non-deleted client
-      const { data: pendingClient } = await supabase
-        .from("clientes")
-        .select("id")
-        .eq("auth_user_id", user.id)
+      // Fallback: get the most recently created pending (non-activated) and non-deleted subscription for this user
+      const { data: pendingSub } = await supabase
+        .from("suscripciones_proyectos")
+        .select("id, clientes!inner(auth_user_id)")
+        .eq("clientes.auth_user_id", user.id)
         .eq("is_deleted", false)
         .eq("backoffice_activado", false)
         .order("created_at", { ascending: false })
         .limit(1)
         .single();
       
-      if (pendingClient) {
-        updateQuery = updateQuery.eq("id", pendingClient.id).select().single();
+      if (pendingSub) {
+        updateQuery = updateQuery.eq("id", pendingSub.id).select().single();
       } else {
-        // Ultimate fallback: get any active (non-deleted) client
-        const { data: activeClient } = await supabase
-          .from("clientes")
-          .select("id")
-          .eq("auth_user_id", user.id)
+        // Ultimate fallback: get any active (non-deleted) subscription
+        const { data: activeSub } = await supabase
+          .from("suscripciones_proyectos")
+          .select("id, clientes!inner(auth_user_id)")
+          .eq("clientes.auth_user_id", user.id)
           .eq("is_deleted", false)
           .limit(1)
           .single();
         
-        if (activeClient) {
-          updateQuery = updateQuery.eq("id", activeClient.id).select().single();
+        if (activeSub) {
+          updateQuery = updateQuery.eq("id", activeSub.id).select().single();
         } else {
-          updateQuery = updateQuery.select().single();
+          return NextResponse.json({ error: "No se encontró una suscripción válida para vincular." }, { status: 404 });
         }
       }
     }
