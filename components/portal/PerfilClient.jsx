@@ -128,16 +128,23 @@ export default function PerfilClient({ user, isUserAdmin, clientDbData }) {
             if (email.trim() && email.trim() !== user.email) pushSetting(`client_${clientData.id}`, 'ADMIN_USER', email.trim());
 
             // 2. Fetch linked projects to update them as well (prevents stale password on control reload)
-            const { data: links } = await supabase
-              .from('proyectos_railway')
-              .select('railway_project_id')
+            const { data: subs } = await supabase
+              .from('suscripciones_proyectos')
+              .select('tokens_backoffice')
               .eq('cliente_id', clientData.id);
 
-            if (links && links.length > 0) {
-              for (const link of links) {
-                if (link.railway_project_id) {
-                  if (password) pushSetting(link.railway_project_id, 'ADMIN_PASS', password);
-                  if (email.trim() && email.trim() !== user.email) pushSetting(link.railway_project_id, 'ADMIN_USER', email.trim());
+            if (subs && subs.length > 0) {
+              const allProjectIds = new Set();
+              subs.forEach(sub => {
+                if (sub.tokens_backoffice) {
+                  sub.tokens_backoffice.forEach(id => allProjectIds.add(id));
+                }
+              });
+
+              for (const projectId of allProjectIds) {
+                if (projectId) {
+                  if (password) pushSetting(projectId, 'ADMIN_PASS', password);
+                  if (email.trim() && email.trim() !== user.email) pushSetting(projectId, 'ADMIN_USER', email.trim());
                 }
               }
             }
