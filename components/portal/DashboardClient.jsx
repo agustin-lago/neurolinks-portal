@@ -57,7 +57,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
     // Fallback if not found or pending deploy
     const baseSlugName = formatSlug(cliente.proyecto_slug);
     if (cliente.plan_tipo === 'masivo_meta' && lineIndex > 0) {
-      return `${baseSlugName} Línea ${lineIndex + 1}`;
+      return `${baseSlugName} Linea ${lineIndex + 1}`;
     }
     return baseSlugName;
   };
@@ -67,6 +67,12 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
     const activationTime = cliente.activated_at ? new Date(cliente.activated_at) : new Date(cliente.updated_at);
     const diffMs = Date.now() - activationTime.getTime();
     return diffMs < 15 * 60 * 1000;
+  };
+  const normalizeHostValue = (value) => {
+    if (!value) return "";
+    const clean = String(value).trim().toLowerCase();
+    if (!clean || clean === "null" || clean === "undefined") return "";
+    return clean.replace(/^(https?:\/\/)?(www\.)?/, "").split("/")[0];
   };
 
   const getPortalUrl = (cliente, index = null) => {
@@ -87,16 +93,19 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
           console.error("Error parsing railway_public_url array:", e);
         }
       }
-      if (pubUrl) {
-        return `https://${pubUrl}`;
+      const normalizedPubUrl = normalizeHostValue(pubUrl);
+      if (normalizedPubUrl) {
+        return `https://${normalizedPubUrl}`;
       }
     }
 
-    // Default to custom domain
-    if (index !== null && cliente.deployment_urls && cliente.deployment_urls[index]) {
-      return `https://${cliente.deployment_urls[index]}`;
-    }
-    return `https://${cliente.deployment_url}`;
+    const customUrl = index !== null && cliente.deployment_urls && cliente.deployment_urls[index]
+      ? normalizeHostValue(cliente.deployment_urls[index])
+      : normalizeHostValue(cliente.deployment_url);
+    if (customUrl) return `https://${customUrl}`;
+
+    const railwayUrl = normalizeHostValue(cliente.railway_public_url);
+    return railwayUrl ? `https://${railwayUrl}` : "";
   };
 
   // Logout is now handled by PortalHeader
@@ -142,7 +151,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
         body: JSON.stringify(editForm)
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Error al actualizar la información");
+      if (!res.ok) throw new Error(data.error || "Error al actualizar la informacion");
 
       // Update state locally
       setClientes(prev => prev.map(c => {
@@ -203,7 +212,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
       
       MySwal.fire({
         icon: 'success',
-        title: '¡Eliminada!',
+        title: 'Eliminada!',
         text: 'La instancia fue eliminada correctamente.',
         background: "#0a1523",
         color: "#fff",
@@ -243,11 +252,11 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
         html: (
           <div className="text-left mt-2">
             <div className="text-white/80 text-xs mb-4 leading-relaxed bg-red-950/20 border border-red-500/20 p-4 rounded-xl space-y-2">
-              <strong className="text-red-400 block mb-1">Esta acción destructiva realizará lo siguiente:</strong>
-              <div>• Se <strong>cancelará la suscripción</strong> en Mercado Pago para detener cobros futuros.</div>
-              <div>• Se <strong>eliminará por completo el servidor</strong> en Railway.</div>
-              <div>• Se <strong>borrarán permanentemente todos los chats y mensajes</strong>.</div>
-              <div>• Se darán de baja los registros DNS.</div>
+              <strong className="text-red-400 block mb-1">Esta accion destructiva realizara lo siguiente:</strong>
+              <div>- Se <strong>cancelara la suscripcion</strong> en Mercado Pago para detener cobros futuros.</div>
+              <div>- Se <strong>eliminara por completo el servidor</strong> en Railway.</div>
+              <div>- Se <strong>borraran permanentemente todos los chats y mensajes</strong>.</div>
+              <div>- Se daran de baja los registros DNS.</div>
             </div>
             <p className="text-white/60 text-xs mb-3">
               Para confirmar la baja definitiva de <strong className="text-white">"{cliente.proyecto_nombre_db || getProjectName(cliente, 0)}"</strong>, por favor escribe el texto exacto <strong className="text-accent-light font-mono select-all">{cliente.proyecto_slug}</strong> en el cuadro de abajo:
@@ -288,14 +297,14 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
       const result = await MySwal.fire({
         icon: 'warning',
         iconColor: '#f59e0b',
-        title: '¿Confirmas eliminar la instancia?',
+        title: 'Confirmas eliminar la instancia?',
         html: (
           <p className="text-white/60 text-sm mt-2 leading-relaxed">
-            Estás por eliminar de forma permanente la instancia impaga de <strong className="text-white">"{cliente.empresa || cliente.proyecto_slug}"</strong> (subdominio: <code className="text-accent-light font-mono text-xs">{cliente.proyecto_slug}.clientesneurolinks.com</code>). Esta acción no se puede deshacer.
+            Estas por eliminar de forma permanente la instancia impaga de <strong className="text-white">"{cliente.empresa || cliente.proyecto_slug}"</strong> (subdominio: <code className="text-accent-light font-mono text-xs">{cliente.proyecto_slug}.clientesneurolinks.com</code>). Esta accion no se puede deshacer.
           </p>
         ),
         showCancelButton: true,
-        confirmButtonText: "Sí, eliminar",
+        confirmButtonText: "Si, eliminar",
         cancelButtonText: "Cancelar",
         buttonsStyling: false,
         background: "#080c14",
@@ -325,8 +334,8 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
       try {
         const supabase = createClient();
         const { data: updated, error } = await supabase
-          .from("suscripciones_proyectos")
-          .select("id, backoffice_activado, deployment_url, deployment_urls, mp_preapproval_id, plan, plan_tipo, lineas_cantidad, railway_public_url, activated_at, updated_at, observaciones, clientes!inner(auth_user_id)")
+          .from("proyectos_railway")
+          .select("id, railway_project_id, backoffice_activado, deployment_url, mp_preapproval_id, plan, plan_tipo, lineas_cantidad, railway_public_url, activated_at, updated_at, observaciones, clientes!inner(auth_user_id)")
           .eq("clientes.auth_user_id", user.id)
           .eq("is_deleted", false);
 
@@ -339,9 +348,10 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
               if (match) {
                 return {
                   ...oldClient,
-                  backoffice_activado: match.backoffice_activado,
+                  backoffice_activado: match.backoffice_activado || Boolean(match.railway_project_id),
                   deployment_url: match.deployment_url,
-                  deployment_urls: match.deployment_urls,
+                  deployment_urls: match.deployment_url ? [match.deployment_url] : [],
+                  tokens_backoffice: match.railway_project_id ? [match.railway_project_id] : [],
                   railway_public_url: match.railway_public_url,
                   activated_at: match.activated_at,
                   updated_at: match.updated_at,
@@ -385,9 +395,9 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
             <svg className="w-12 h-12 text-white/15 mx-auto mb-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5m8.25-3v13.5m0-13.5L8.25 7.5m3.75-3l3.75 3M3.75 7.5h16.5" />
             </svg>
-            <h3 className="font-heading font-bold text-white text-lg mb-1">No tenés productos registrados</h3>
+            <h3 className="font-heading font-bold text-white text-lg mb-1">No tenes productos registrados</h3>
             <p className="text-white/30 text-sm mb-6 max-w-xs mx-auto">
-              Creá tu primera instancia para habilitar tus chatbots o campañas de WhatsApp.
+              Crea tu primera instancia para habilitar tus chatbots o campanas de WhatsApp.
             </p>
             <Link
               href="/portal/dashboard/nuevo"
@@ -424,7 +434,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
                   Generar otra instancia
                 </h3>
                 <p className="relative z-10 text-white/30 group-hover:text-white/50 text-xs max-w-[200px] mx-auto transition-colors duration-300 leading-relaxed">
-                  Adquirí otro chatbot o canal de envíos masivos para tu empresa.
+                  Adquiri otro chatbot o canal de envios masivos para tu empresa.
                 </p>
               </Link>
             </div>
@@ -471,7 +481,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
                             Activo
                           </span>
                           <span className="text-[10px] text-white/30 font-heading uppercase tracking-wide">
-                            Línea {i + 1}
+                            Linea {i + 1}
                           </span>
                         </div>
 
@@ -485,7 +495,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
                           </p>
                         ) : (
                           <p className="text-white/20 text-xs italic mb-2">
-                            Sin observación
+                            Sin observacion
                           </p>
                         )}
                         <p className="text-white/35 text-xs mb-4">
@@ -534,7 +544,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
                             rel="noreferrer"
                             className="flex items-center justify-center gap-2 bg-white/[0.03] group-hover:bg-accent border border-white/[0.08] group-hover:border-accent/40 rounded-xl py-3 text-xs font-semibold text-white transition-all duration-200"
                           >
-                            Acceder al Backoffice
+                            {hasPortalUrl ? "Acceder al Backoffice" : "URL pendiente"}
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
                             </svg>
@@ -556,7 +566,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
                 });
               }
 
-              const isActive = cliente.backoffice_activado && cliente.deployment_url;
+              const isActive = cliente.backoffice_activado && (cliente.deployment_url || cliente.railway_public_url);
               const isDeploying = !cliente.backoffice_activado && cliente.mp_preapproval_id;
 
               return (
@@ -679,7 +689,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
                           onClick={() => handleDelete(cliente)}
                           disabled={deletingId === cliente.id}
                           className="px-3.5 flex items-center justify-center bg-red-500/[0.04] hover:bg-red-500 border border-red-500/20 hover:border-red-500 rounded-xl text-red-400 hover:text-white transition-all duration-200 disabled:opacity-40 shrink-0"
-                          title="Eliminar Instancia y Suscripción"
+                          title="Eliminar Instancia y Suscripcion"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.34 9m-4.78 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
@@ -703,7 +713,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
                           onClick={() => handleDelete(cliente)}
                           disabled={deletingId === cliente.id}
                           className="px-3.5 flex items-center justify-center bg-red-500/[0.04] hover:bg-red-500 border border-red-500/20 hover:border-red-500 rounded-xl text-red-400 hover:text-white transition-all duration-200 disabled:opacity-40 shrink-0"
-                          title="Eliminar Instancia y Suscripción"
+                          title="Eliminar Instancia y Suscripcion"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.34 9m-4.78 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
@@ -746,7 +756,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
 
       {/* Footer was handled by PortalPageWrapper */}
 
-      {/* Modal de Edición de Instancia */}
+      {/* Modal de edicion de instancia */}
       {editingClient && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
@@ -756,7 +766,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
           <div className="relative z-10 w-full max-w-lg bg-[#0a1523] rounded-2xl border border-[#0099ff]/20 p-6 shadow-2xl shadow-[0_0_50px_rgba(0,153,255,0.18)] overflow-y-auto max-h-[90vh]">
             <div className="flex items-center justify-between mb-4 border-b border-white/[0.05] pb-3">
               <h3 className="font-heading font-extrabold text-white text-lg">
-                Editar Información de la Instancia
+                Editar informacion de la instancia
               </h3>
               <button
                 type="button"
@@ -815,7 +825,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
                 )}
                 {isAdmin && (
                   <span className="text-[10px] text-amber-400/80 mt-1 block">
-                    ⚠️ Cambiar el slug requiere actualizar manualmente los registros DNS de Hostinger y el custom domain en Railway.
+                    Configurar un enlace personalizado crea el dominio en Railway y actualiza DNS en Hostinger.
                   </span>
                 )}
               </div>
@@ -823,14 +833,14 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
               {/* Dominios Personalizados */}
               <div>
                 <label className="block text-white/50 text-xs font-semibold mb-1.5 uppercase tracking-wider">
-                  Dominios Personalizados (Hostinger)
+                  Enlace personalizado
                 </label>
 
                 {editingClient.lineas_cantidad > 1 ? (
                   <div className="space-y-3">
                     {Array.from({ length: Number(editingClient.lineas_cantidad) }).map((_, idx) => (
                       <div key={idx} className="flex items-center gap-2">
-                        <span className="text-[10px] text-white/30 w-12 font-mono shrink-0">Línea {idx + 1}:</span>
+                        <span className="text-[10px] text-white/30 w-12 font-mono shrink-0">Linea {idx + 1}:</span>
                         <input
                           type="text"
                           value={editForm.deployment_urls[idx] || ""}
@@ -850,26 +860,26 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
                     type="text"
                     value={editForm.deployment_url}
                     onChange={(e) => setEditForm(prev => ({ ...prev, deployment_url: e.target.value }))}
-                    placeholder="ej: app.miempresa.com"
+                    placeholder="ej: ganamos.clientesneurolinks.com"
                     className="w-full bg-white/[0.04] border border-white/[0.08] focus:border-accent/40 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/20 focus:outline-none font-mono"
                   />
                 )}
                 <span className="text-[10px] text-white/30 mt-1 block">
-                  Inserta el host limpio (ej: <code>app.miempresa.com</code>). Los protocolos <code>https://</code> se removerán automáticamente.
+                  Si lo dejas vacio, se usa la URL publica de Railway. Si cargas un subdominio de clientesneurolinks.com, se configura Railway y Hostinger.
                 </span>
               </div>
 
-              {/* Observación / Identificación de Línea */}
+              {/* Observacion / Identificacion de linea */}
               <div>
                 <label className="block text-white/50 text-xs font-semibold mb-1.5 uppercase tracking-wider">
-                  {editingClient.lineas_cantidad > 1 ? "Observaciones por Línea" : "Observación / Nota"}
+                  {editingClient.lineas_cantidad > 1 ? "Observaciones por linea" : "Observacion / Nota"}
                 </label>
 
                 {editingClient.lineas_cantidad > 1 ? (
                   <div className="space-y-3">
                     {Array.from({ length: Number(editingClient.lineas_cantidad) }).map((_, idx) => (
                       <div key={idx} className="flex items-center gap-2">
-                        <span className="text-[10px] text-white/30 w-12 font-mono shrink-0">Línea {idx + 1}:</span>
+                        <span className="text-[10px] text-white/30 w-12 font-mono shrink-0">Linea {idx + 1}:</span>
                         <input
                           type="text"
                           value={editForm.observaciones[idx] || ""}
@@ -878,7 +888,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
                             newObs[idx] = e.target.value;
                             setEditForm(prev => ({ ...prev, observaciones: newObs }));
                           }}
-                          placeholder={`ej: Línea de ${idx === 0 ? "Mariana" : idx === 1 ? "Nara" : "Guchi"}`}
+                          placeholder={`ej: Linea de ${idx === 0 ? "Mariana" : idx === 1 ? "Nara" : "Guchi"}`}
                           className="flex-1 bg-white/[0.04] border border-white/[0.08] focus:border-[#0099ff]/40 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/20 focus:outline-none"
                         />
                       </div>
@@ -893,12 +903,12 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
                       newObs[0] = e.target.value;
                       setEditForm(prev => ({ ...prev, observaciones: newObs }));
                     }}
-                    placeholder="ej: Servidor Principal / Campañas"
+                    placeholder="ej: Servidor Principal / Campanas"
                     className="w-full bg-white/[0.04] border border-white/[0.08] focus:border-[#0099ff]/40 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/20 focus:outline-none"
                   />
                 )}
                 <span className="text-[10px] text-white/30 mt-1 block">
-                  Permite diferenciar las distintas líneas o instancias en el listado.
+                  Permite diferenciar las distintas lineas o instancias en el listado.
                 </span>
               </div>
 

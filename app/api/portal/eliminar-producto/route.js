@@ -8,51 +8,35 @@ export async function POST(request) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-    }
+    if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
     const { id, forceDeleteActive } = await request.json().catch(() => ({}));
+    if (!id) return NextResponse.json({ error: "Falta el ID del producto a eliminar" }, { status: 400 });
 
-    if (!id) {
-      return NextResponse.json({ error: "Falta el ID del producto a eliminar" }, { status: 400 });
-    }
-
-    // 1. Fetch subscription to verify ownership
-    const { data: suscripcion, error: fetchError } = await supabase
-      .from("suscripciones_proyectos")
-      .select("id, backoffice_activado, mp_preapproval_id, token_backoffice, tokens_backoffice, deployment_url, deployment_urls, plan_tipo, lineas_cantidad, proyecto_slug, clientes!inner(auth_user_id, vendedor_id)")
+    const { data: proyecto, error: fetchError } = await supabase
+      .from("proyectos_railway")
+      .select("id, cliente_id, backoffice_activado, mp_preapproval_id, railway_project_id, deployment_url, plan_tipo, lineas_cantidad, proyecto_slug, clientes!inner(auth_user_id, vendedor_id)")
       .eq("id", id)
       .eq("clientes.auth_user_id", user.id)
       .single();
 
-    if (fetchError || !suscripcion) {
-      return NextResponse.json({ error: "Instancia no encontrada o no pertenece a tu usuario" }, { status: 404 });
-    }
+    if (fetchError || !proyecto) return NextResponse.json({ error: "Instancia no encontrada o no pertenece a tu usuario" }, { status: 404 });
 
-    const isActiveOrDeploying = suscripcion.backoffice_activado || suscripcion.mp_preapproval_id;
-
+    const isActiveOrDeploying = proyecto.backoffice_activado || proyecto.mp_preapproval_id;
     if (isActiveOrDeploying && !forceDeleteActive) {
-      return NextResponse.json({ 
-        error: "Esta instancia está activa o en proceso de despliegue. Confirma la eliminación destructiva." 
-      }, { status: 400 });
+      return NextResponse.json({ error: "Esta instancia esta activa o en proceso de despliegue. Confirma la eliminacion destructiva." }, { status: 400 });
     }
 
     const adminDb = createAdminClient();
 
-    // 2. If active or deploying, trigger teardown of external resources
     if (isActiveOrDeploying) {
-      // 2.1 Cancel Mercado Pago Subscription
-      if (suscripcion.mp_preapproval_id) {
-        console.log(`[Teardown] Canceling preapproval: ${suscripcion.mp_preapproval_id}`);
-        // Fetch seller token
+      if (proyecto.mp_preapproval_id) {
         let sellerToken = null;
-        if (suscripcion.clientes?.vendedor_id) {
+        if (proyecto.clientes?.vendedor_id) {
           const { data: seller } = await adminDb
             .from("mp_vendedores")
             .select("access_token")
-            .eq("id", suscripcion.clientes.vendedor_id)
+            .eq("id", proyecto.clientes.vendedor_id)
             .single();
           if (seller) sellerToken = seller.access_token;
         }
@@ -65,134 +49,70 @@ export async function POST(request) {
           if (seller) sellerToken = seller.access_token;
         }
 
-        const mainToken = process.env.MP_ACCESS_TOKEN;
         const mpTokens = [];
         if (sellerToken) mpTokens.push({ name: "Seller Token", value: sellerToken });
-        if (mainToken) mpTokens.push({ name: "Main Token", value: mainToken });
-
-        const url = `https://api.mercadopago.com/preapproval/${suscripcion.mp_preapproval_id}`;
-        let mpCancelled = false;
+        if (process.env.MP_ACCESS_TOKEN) mpTokens.push({ name: "Main Token", value: process.env.MP_ACCESS_TOKEN });
 
         for (const token of mpTokens) {
           try {
-            console.log(`[Teardown] Trying subscription cancellation with ${token.name}...`);
-            const mpRes = await fetch(url, {
+            const mpRes = await fetch(`https://api.mercadopago.com/preapproval/${proyecto.mp_preapproval_id}`, {
               method: "PUT",
-              headers: {
-                "Authorization": `Bearer ${token.value}`,
-                "Content-Type": "application/json"
-              },
+              headers: { "Authorization": `Bearer ${token.value}`, "Content-Type": "application/json" },
               body: JSON.stringify({ status: "cancelled" })
             });
-            const mpData = await mpRes.json();
-            if (mpRes.ok) {
-              console.log(`[Teardown] ✅ Preapproval ${suscripcion.mp_preapproval_id} cancelled successfully using ${token.name}.`);
-              mpCancelled = true;
-              break;
-            } else {
-              console.warn(`[Teardown] ⚠️ MP API failed for ${token.name}:`, JSON.stringify(mpData));
-            }
+            if (mpRes.ok) break;
           } catch (err) {
-            console.error(`[Teardown] ❌ Error with ${token.name}:`, err.message);
-          }
-        }
-
-        if (!mpCancelled) {
-          console.warn(`[Teardown] Could not cancel subscription ${suscripcion.mp_preapproval_id} in MP. Proceeding with remaining steps...`);
-        }
-      }
-
-      // 2.2 Delete Railway project(s)
-      const projectIds = new Set();
-      if (suscripcion.token_backoffice) projectIds.add(suscripcion.token_backoffice);
-      if (suscripcion.tokens_backoffice?.length) {
-        suscripcion.tokens_backoffice.forEach(tid => {
-          if (tid) projectIds.add(tid);
-        });
-      }
-
-      for (const projectId of projectIds) {
-        try {
-          await deleteRailwayProject(projectId);
-        } catch (err) {
-          console.error(`[Teardown] Error deleting project ${projectId}:`, err.message);
-        }
-      }
-
-      // 2.3 Delete Hostinger DNS records
-      const slugs = new Set();
-      if (suscripcion.proyecto_slug) {
-        slugs.add(suscripcion.proyecto_slug);
-        if (suscripcion.lineas_cantidad > 1) {
-          for (let i = 1; i <= suscripcion.lineas_cantidad; i++) {
-            slugs.add(`${suscripcion.proyecto_slug}-linea${i}`);
+            console.error(`[Teardown] Error cancelling MP with ${token.name}:`, err.message);
           }
         }
       }
 
-      const dnsFilters = Array.from(slugs).flatMap(slug => [
-        { name: slug, type: "CNAME" },
-        { name: `_railway-verify.${slug}`, type: "TXT" }
-      ]);
-
-      if (dnsFilters.length > 0) {
-        try {
-          await deleteDnsRecords(dnsFilters);
-        } catch (err) {
-          console.error(`[Teardown] Error deleting DNS records:`, err.message);
-        }
+      if (proyecto.railway_project_id) {
+        try { await deleteRailwayProject(proyecto.railway_project_id); }
+        catch (err) { console.error(`[Teardown] Error deleting project ${proyecto.railway_project_id}:`, err.message); }
       }
 
-      // 2.4 Clean up database operative records associated with the project IDs
-      if (projectIds.size > 0) {
-        const pids = Array.from(projectIds);
-        console.log(`[Teardown] Cleaning up DB operative data for projects:`, pids);
-
-        await adminDb.from("settings").delete().in("project_id", pids);
-        await adminDb.from("whatsapp_sessions").delete().in("project_id", pids);
-        await adminDb.from("routing_table").delete().in("project_id", pids);
-        await adminDb.from("meta_onboarding").delete().in("project_id", pids);
-        await adminDb.from("chat_tags").delete().in("project_id", pids);
-        await adminDb.from("tags").delete().in("project_id", pids);
-        await adminDb.from("messages").delete().in("project_id", pids);
-        await adminDb.from("chats").delete().in("project_id", pids);
+      if (proyecto.proyecto_slug) {
+        const dnsFilters = [
+          { name: proyecto.proyecto_slug, type: "CNAME" },
+          { name: `_railway-verify.${proyecto.proyecto_slug}`, type: "TXT" }
+        ];
+        try { await deleteDnsRecords(dnsFilters); }
+        catch (err) { console.error("[Teardown] Error deleting DNS records:", err.message); }
       }
 
-      // 2.5 Clean up support tickets for this client
-      await adminDb.from("tickets").delete().eq("cliente_id", id);
+      if (proyecto.railway_project_id) {
+        const pid = proyecto.railway_project_id;
+        await adminDb.from("settings").delete().eq("project_id", pid);
+        await adminDb.from("whatsapp_sessions").delete().eq("project_id", pid);
+        await adminDb.from("routing_table").delete().eq("project_id", pid);
+        await adminDb.from("meta_onboarding").delete().eq("project_id", pid);
+        await adminDb.from("chat_tags").delete().eq("project_id", pid);
+        await adminDb.from("tags").delete().eq("project_id", pid);
+        await adminDb.from("messages").delete().eq("project_id", pid);
+        await adminDb.from("chats").delete().eq("project_id", pid);
+        await adminDb.from("tickets").delete().eq("project_id", pid);
+      }
     }
 
-    // 3. Perform Soft Delete on the subscription record
-    console.log(`[Teardown] Soft-deleting subscription record: ${id}`);
     const { error: deleteError } = await adminDb
-      .from("suscripciones_proyectos")
+      .from("proyectos_railway")
       .update({
         is_deleted: true,
         backoffice_activado: false,
         mp_preapproval_id: null,
-        token_backoffice: null,
-        tokens_backoffice: [],
+        railway_project_id: null,
         deployment_url: null,
-        deployment_urls: [],
+        railway_public_url: null,
+        deploy_in_progress: false,
         updated_at: new Date().toISOString()
       })
       .eq("id", id);
 
-    if (deleteError) {
-      console.error("[Teardown] Database soft-delete error:", deleteError);
-      throw new Error(deleteError.message || "Error al desactivar la instancia en la base de datos.");
-    }
+    if (deleteError) throw new Error(deleteError.message || "Error al desactivar la instancia en la base de datos.");
 
-    console.log(`[Teardown] Successfully soft-deleted product ${id} for user ${user.id}`);
-
-    // Recalcular suscripciones activas del plan si el cliente estaba activo y tenía vendedor
-    if (suscripcion.backoffice_activado && suscripcion.clientes?.vendedor_id) {
-      await recalculatePlanSubscriptions(
-        suscripcion.clientes.vendedor_id,
-        suscripcion.plan_tipo,
-        suscripcion.lineas_cantidad,
-        adminDb
-      );
+    if (proyecto.backoffice_activado && proyecto.clientes?.vendedor_id) {
+      await recalculatePlanSubscriptions(proyecto.clientes.vendedor_id, proyecto.plan_tipo, proyecto.lineas_cantidad, adminDb);
     }
 
     return NextResponse.json({ success: true });
@@ -201,4 +121,3 @@ export async function POST(request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
-

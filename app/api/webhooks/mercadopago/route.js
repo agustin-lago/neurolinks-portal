@@ -183,7 +183,7 @@ export async function POST(request) {
       console.log(`[Webhook] Notification lacks external_reference but has preapproval_id/subscription_id '${preapprovalId}'. Searching in database...`);
       try {
         const { data: matchedClient } = await adminDb
-          .from("suscripciones_proyectos")
+          .from("proyectos_railway")
           .select("id")
           .eq("mp_preapproval_id", String(preapprovalId))
           .single();
@@ -216,7 +216,7 @@ export async function POST(request) {
     if (preapprovalId) {
       try {
         await adminDb
-          .from("suscripciones_proyectos")
+          .from("proyectos_railway")
           .update({ mp_preapproval_id: String(preapprovalId) })
           .eq("id", clienteId);
       } catch (linkErr) {

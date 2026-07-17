@@ -116,23 +116,34 @@ function LoginForm({ onSwitch, onForgot }) {
         if (user) {
           const { data: clientRows } = await supabase
             .from("clientes")
-            .select("token_backoffice, tokens_backoffice")
+            .select("id, token_backoffice, tokens_backoffice")
             .eq("auth_user_id", user.id);
 
           if (clientRows && clientRows.length > 0) {
             const projectIds = [];
+            const addProjectId = (pid) => {
+              if (pid && !projectIds.includes(pid)) projectIds.push(pid);
+            };
+
             clientRows.forEach((row) => {
-              if (row.token_backoffice && !projectIds.includes(row.token_backoffice)) {
-                projectIds.push(row.token_backoffice);
-              }
+              addProjectId(row.token_backoffice);
               if (Array.isArray(row.tokens_backoffice)) {
-                row.tokens_backoffice.forEach((pid) => {
-                  if (pid && !projectIds.includes(pid)) {
-                    projectIds.push(pid);
-                  }
-                });
+                row.tokens_backoffice.forEach(addProjectId);
               }
             });
+
+            const clientIds = clientRows.map(row => row.id).filter(Boolean);
+            if (clientIds.length > 0) {
+              const { data: projectRows } = await supabase
+                .from("proyectos_railway")
+                .select("railway_project_id")
+                .in("cliente_id", clientIds)
+                .eq("is_deleted", false);
+
+              if (projectRows) {
+                projectRows.forEach(row => addProjectId(row.railway_project_id));
+              }
+            }
 
             if (projectIds.length > 0) {
               console.log("[LoginForm] Synchronizing ADMIN credentials for project IDs:", projectIds);

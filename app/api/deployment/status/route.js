@@ -10,40 +10,23 @@ export async function GET(request) {
   if (!user) return NextResponse.json({ ready: false });
 
   let query = supabase
-    .from("suscripciones_proyectos")
-    .select("backoffice_activado, deployment_url, railway_public_url, activated_at, updated_at, clientes!inner(auth_user_id)")
-    .eq("clientes.auth_user_id", user.id);
+    .from("proyectos_railway")
+    .select("backoffice_activado, deployment_url, railway_public_url, railway_project_id, activated_at, updated_at, clientes!inner(auth_user_id)")
+    .eq("clientes.auth_user_id", user.id)
+    .eq("is_deleted", false);
 
-  if (id) {
-    query = query.eq("id", id).single();
-  } else {
-    query = query.limit(1).single();
-  }
+  if (id) query = query.eq("id", id).single();
+  else query = query.order("created_at", { ascending: false }).limit(1).single();
 
-  const { data: suscripcion } = await query;
-  const ready = !!(suscripcion?.backoffice_activado && (suscripcion?.deployment_url || suscripcion?.railway_public_url));
-  
-  let targetUrl = suscripcion?.deployment_url ?? null;
+  const { data: proyecto } = await query;
+  const isActive = proyecto?.backoffice_activado || Boolean(proyecto?.railway_project_id);
+  const ready = !!(isActive && (proyecto?.deployment_url || proyecto?.railway_public_url));
+  let targetUrl = proyecto?.deployment_url || proyecto?.railway_public_url || null;
 
-  if (suscripcion?.backoffice_activado && suscripcion?.railway_public_url) {
-    const activationTime = suscripcion.activated_at ? new Date(suscripcion.activated_at) : new Date(suscripcion.updated_at);
+  if (isActive && proyecto?.railway_public_url) {
+    const activationTime = proyecto.activated_at ? new Date(proyecto.activated_at) : new Date(proyecto.updated_at);
     const diffMs = Date.now() - activationTime.getTime();
-    const fifteenMinutesMs = 15 * 60 * 1000;
-
-    if (diffMs < fifteenMinutesMs) {
-      let pubUrl = suscripcion.railway_public_url;
-      if (pubUrl.startsWith("[")) {
-        try {
-          const parsed = JSON.parse(pubUrl);
-          pubUrl = parsed[0] || null;
-        } catch (e) {
-          console.error("[status API] Failed to parse railway_public_url array:", e);
-        }
-      }
-      if (pubUrl) {
-        targetUrl = pubUrl;
-      }
-    }
+    if (diffMs < 15 * 60 * 1000) targetUrl = proyecto.railway_public_url;
   }
 
   return NextResponse.json({ ready, url: targetUrl });

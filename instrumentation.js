@@ -12,11 +12,12 @@ export async function register() {
       try {
         const adminDb = createAdminClient();
         const { data: pendingSubscriptions } = await adminDb
-          .from("suscripciones_proyectos")
+          .from("proyectos_railway")
           .select("id, proyecto_slug")
           .eq("is_deleted", false)
           .eq("backoffice_activado", false)
-          .not("token_backoffice", "is", null);
+          .eq("deploy_in_progress", false)
+          .not("mp_preapproval_id", "is", null);
 
         if (pendingSubscriptions && pendingSubscriptions.length > 0) {
           console.log(`[Cron Sync Loop] Found ${pendingSubscriptions.length} pending subscription(s) to sync. Triggering...`);

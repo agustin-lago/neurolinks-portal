@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-
-
 export async function POST(request) {
   try {
     const supabase = await createClient();
@@ -18,23 +16,21 @@ export async function POST(request) {
       return NextResponse.json({ error: "Falta el campo requerido (slug)" }, { status: 400 });
     }
 
-    // Clean and validate slug (lowercase, alphanumeric and hyphens only)
     const cleanSlug = proyecto_slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "");
-    if (!cleanSlug) {
-      return NextResponse.json({ error: "Slug de proyecto inválido" }, { status: 400 });
+    if (!cleanSlug || cleanSlug === "null" || cleanSlug === "undefined") {
+      return NextResponse.json({ error: "Slug de proyecto invalido" }, { status: 400 });
     }
 
-    // Check if the slug already exists in the database
     const { count: slugExists } = await supabase
-      .from("suscripciones_proyectos")
+      .from("proyectos_railway")
       .select("id", { count: "exact", head: true })
-      .eq("proyecto_slug", cleanSlug);
+      .eq("proyecto_slug", cleanSlug)
+      .eq("is_deleted", false);
 
     if (slugExists > 0) {
-      return NextResponse.json({ error: `El slug "${cleanSlug}" ya está registrado en Neurolinks. Elegí otro.` }, { status: 400 });
+      return NextResponse.json({ error: `El slug "${cleanSlug}" ya esta registrado en Neurolinks. Elegi otro.` }, { status: 400 });
     }
 
-    // Check if the user already exists in clientes (to avoid duplicates)
     const { data: existingClient } = await supabase
       .from("clientes")
       .select("id, is_admin")
@@ -55,7 +51,6 @@ export async function POST(request) {
         user.email === "neurolinksarg@gmail.com"
       );
 
-      // Create new client row (only once per user)
       const { data: newClientData, error: clientErr } = await supabase
         .from("clientes")
         .insert({
@@ -70,57 +65,55 @@ export async function POST(request) {
         })
         .select()
         .single();
-        
+
       if (clientErr) throw new Error("Error al crear perfil de cliente en la base de datos.");
       clienteId = newClientData.id;
     }
 
-    // Resolve default plan configuration (will be re-selected on the payment step)
     const selectedPlanTipo = "masivo_meta";
     const selectedLines = 1;
-    
-    // Get pricing and plan name from DB
-    const { data: dbPlan } = await supabase
-      .from('catalogo_planes')
-      .select('nombre, precio')
-      .eq('plan_tipo', selectedPlanTipo)
-      .eq('lineas_cantidad', selectedLines)
-      .eq('activo', true)
-      .maybeSingle();
-      
-    const planConfig = dbPlan || { nombre: 'Standard + 1', precio: 63000 };
 
-    // Insert new product record in suscripciones_proyectos
-    const { data: newSub, error: subErr } = await supabase
-      .from("suscripciones_proyectos")
+    const { data: dbPlan } = await supabase
+      .from("catalogo_planes")
+      .select("nombre, precio")
+      .eq("plan_tipo", selectedPlanTipo)
+      .eq("lineas_cantidad", selectedLines)
+      .eq("activo", true)
+      .maybeSingle();
+
+    const planConfig = dbPlan || { nombre: "Standard + 1", precio: 63000 };
+
+    const { data: newProject, error: projectErr } = await supabase
+      .from("proyectos_railway")
       .insert({
         cliente_id: clienteId,
+        railway_project_id: null,
+        nombre_personalizado: proyecto_nombre || cleanSlug,
         proyecto_slug: cleanSlug,
-        proyecto_nombre: proyecto_nombre || cleanSlug,
         plan_tipo: selectedPlanTipo,
         lineas_cantidad: selectedLines,
         plan: planConfig.nombre,
         abono: planConfig.precio,
         backoffice_activado: false,
         deployment_url: null,
-        deployment_urls: [],
-        tokens_backoffice: [],
-        token_backoffice: null,
+        railway_public_url: null,
         mp_preapproval_id: null,
+        deploy_in_progress: false,
+        is_deleted: false,
+        source: "portal",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
       .select()
       .single();
 
-    if (subErr) {
-      console.error("[Nuevo Producto] Database insert error:", subErr);
-      throw new Error("Error al insertar la suscripción en la base de datos.");
+    if (projectErr) {
+      console.error("[Nuevo Producto] Database insert error:", projectErr);
+      throw new Error("Error al insertar el proyecto en la base de datos.");
     }
 
-    console.log(`[Nuevo Producto] Successfully created product ${newSub.id} for user ${user.id}`);
-    
-    return NextResponse.json({ success: true, client: newSub });
+    console.log(`[Nuevo Producto] Successfully created project ${newProject.id} for user ${user.id}`);
+    return NextResponse.json({ success: true, client: newProject });
   } catch (error) {
     console.error("[Nuevo Producto] Critical error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });

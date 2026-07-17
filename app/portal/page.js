@@ -13,16 +13,29 @@ export default async function PortalPage({ searchParams }) {
   let cliente = null;
 
   if (user) {
-    const { data } = await supabase
+    const { data: clientData } = await supabase
       .from("clientes")
-      .select("id, nombre, plan, abono, backoffice_activado, deployment_url")
+      .select("id, nombre")
       .eq("auth_user_id", user.id)
       .single();
 
-    cliente = data;
+    if (clientData?.id) {
+      const { data: projectData } = await supabase
+        .from("proyectos_railway")
+        .select("plan, abono, backoffice_activado, deployment_url, railway_public_url, railway_project_id")
+        .eq("cliente_id", clientData.id)
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-    if (cliente?.backoffice_activado && cliente?.deployment_url) {
-      redirect(`https://${cliente.deployment_url}`);
+      cliente = { ...clientData, ...(projectData || {}) };
+
+      const isActive = projectData?.backoffice_activado || Boolean(projectData?.railway_project_id);
+      const targetUrl = projectData?.deployment_url || projectData?.railway_public_url;
+      if (isActive && targetUrl) {
+        redirect(`https://${targetUrl}`);
+      }
     }
   }
 

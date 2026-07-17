@@ -20,11 +20,12 @@ export async function GET(request) {
     const adminDb = createAdminClient();
 
     const { data: pendingSubscriptions, error } = await adminDb
-      .from("suscripciones_proyectos")
+      .from("proyectos_railway")
       .select("id, proyecto_slug")
       .eq("is_deleted", false)
       .eq("backoffice_activado", false)
-      .not("token_backoffice", "is", null);
+      .eq("deploy_in_progress", false)
+      .not("mp_preapproval_id", "is", null);
 
     if (error) {
       throw error;
