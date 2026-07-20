@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { activateClientPortal } from "@/lib/railway";
 
@@ -21,11 +21,12 @@ export async function GET(request) {
 
     const { data: pendingSubscriptions, error } = await adminDb
       .from("proyectos_railway")
-      .select("id, proyecto_slug")
+      .select("id, proyecto_slug, clientes!inner(subscription_status)")
       .eq("is_deleted", false)
       .eq("backoffice_activado", false)
       .eq("deploy_in_progress", false)
-      .not("mp_preapproval_id", "is", null);
+      .is("railway_project_id", null)
+      .in("clientes.subscription_status", ["active", "manual"]);
 
     if (error) {
       throw error;

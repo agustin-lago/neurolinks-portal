@@ -11,12 +11,12 @@ export default async function PerfilPage() {
 
   const { data: clientData } = await supabase
     .from("clientes")
-    .select("is_admin, nombre, empresa, telefono")
+    .select("is_admin, nombre, empresa, telefono, plan, plan_tipo, lineas_cantidad, abono, vencimiento, mp_preapproval_id, subscription_status, subscription_source")
     .eq("auth_user_id", user.id)
     .limit(1)
     .single();
 
   const isUserAdmin = !!(clientData?.is_admin);
 
-  return <PerfilClient user={user} isUserAdmin={isUserAdmin} clientDbData={clientData} />;
+  return <PerfilClient user={user} isUserAdmin={isUserAdmin} clientDbData={clientData} subscription={clientData} />;
 }

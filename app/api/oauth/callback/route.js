@@ -3,28 +3,40 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 const STANDARDIZED_PLANS = [
   {
-    plan_tipo: "masivo_meta",
+    plan_tipo: "standar",
     lineas_cantidad: 1,
-    nombre: "Standard + 1",
+    nombre: "Standar c/1 Linea",
     monto: 63000,
   },
   {
-    plan_tipo: "masivo_meta",
+    plan_tipo: "standar",
     lineas_cantidad: 2,
-    nombre: "Standard + 2",
-    monto: 99000,
+    nombre: "Standar c/2 Lineas",
+    monto: 126000,
   },
   {
-    plan_tipo: "masivo_meta",
+    plan_tipo: "standar",
     lineas_cantidad: 3,
-    nombre: "Standard + 3",
-    monto: 120000,
+    nombre: "Standar c/3 Lineas",
+    monto: 189000,
   },
   {
-    plan_tipo: "chatbot_ia",
+    plan_tipo: "chatbot",
     lineas_cantidad: 1,
-    nombre: "Plus",
+    nombre: "Chatbot c/1 Linea",
     monto: 210000,
+  },
+  {
+    plan_tipo: "chatbot",
+    lineas_cantidad: 2,
+    nombre: "Chatbot c/2 Lineas",
+    monto: 420000,
+  },
+  {
+    plan_tipo: "chatbot",
+    lineas_cantidad: 3,
+    nombre: "Chatbot c/3 Lineas",
+    monto: 630000,
   }
 ];
 

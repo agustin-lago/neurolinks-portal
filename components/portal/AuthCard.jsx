@@ -112,63 +112,6 @@ function LoginForm({ onSwitch, onForgot }) {
       setError(parseError(error.message));
       setLoading(false);
     } else {
-      try {
-        if (user) {
-          const { data: clientRows } = await supabase
-            .from("clientes")
-            .select("id, token_backoffice, tokens_backoffice")
-            .eq("auth_user_id", user.id);
-
-          if (clientRows && clientRows.length > 0) {
-            const projectIds = [];
-            const addProjectId = (pid) => {
-              if (pid && !projectIds.includes(pid)) projectIds.push(pid);
-            };
-
-            clientRows.forEach((row) => {
-              addProjectId(row.token_backoffice);
-              if (Array.isArray(row.tokens_backoffice)) {
-                row.tokens_backoffice.forEach(addProjectId);
-              }
-            });
-
-            const clientIds = clientRows.map(row => row.id).filter(Boolean);
-            if (clientIds.length > 0) {
-              const { data: projectRows } = await supabase
-                .from("proyectos_railway")
-                .select("railway_project_id")
-                .in("cliente_id", clientIds)
-                .eq("is_deleted", false);
-
-              if (projectRows) {
-                projectRows.forEach(row => addProjectId(row.railway_project_id));
-              }
-            }
-
-            if (projectIds.length > 0) {
-              console.log("[LoginForm] Synchronizing ADMIN credentials for project IDs:", projectIds);
-              for (const pid of projectIds) {
-                // Update existing keys: ADMIN_USER
-                await supabase
-                  .from("settings")
-                  .update({ value: email })
-                  .eq("project_id", pid)
-                  .eq("key", "ADMIN_USER");
-
-                // Update existing keys: ADMIN_PASS
-                await supabase
-                  .from("settings")
-                  .update({ value: contrasena })
-                  .eq("project_id", pid)
-                  .eq("key", "ADMIN_PASS");
-              }
-            }
-          }
-        }
-      } catch (dbErr) {
-        console.error("[LoginForm] Error synchronizing settings credentials:", dbErr);
-      }
-
       router.push("/portal/dashboard");
     }
   };

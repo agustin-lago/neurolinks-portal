@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { configureCustomDomainForProject } from "@/lib/railway";
+import { configureCustomDomainForProject, updateRailwayProjectName } from "@/lib/railway";
 
 function normalizeDomain(url) {
   if (!url) return null;
@@ -19,7 +19,7 @@ export async function POST(request) {
     if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
     const body = await request.json().catch(() => ({}));
-    const { id, empresa, proyecto_slug, deployment_url, deployment_urls, observaciones } = body;
+    const { id, empresa, proyecto_slug, deployment_url, observaciones } = body;
     if (!id) return NextResponse.json({ error: "Falta el ID del producto a editar" }, { status: 400 });
 
     const adminDb = createAdminClient();
@@ -52,13 +52,8 @@ export async function POST(request) {
       }
     }
 
-    const urlFieldWasSubmitted = deployment_url !== undefined || (Array.isArray(deployment_urls) && deployment_urls.length > 0);
-    let finalUrl = null;
-    if (deployment_urls && Array.isArray(deployment_urls) && deployment_urls.length > 0) {
-      finalUrl = normalizeDomain(deployment_urls[0]);
-    } else if (deployment_url !== undefined) {
-      finalUrl = normalizeDomain(deployment_url);
-    }
+    const urlFieldWasSubmitted = deployment_url !== undefined;
+    const finalUrl = deployment_url !== undefined ? normalizeDomain(deployment_url) : null;
 
     const updateFields = { updated_at: new Date().toISOString() };
     const baseDomain = (process.env.HOSTINGER_DOMAIN || "clientesneurolinks.com").replace(/^"(.*)"$/, "$1");
@@ -72,7 +67,19 @@ export async function POST(request) {
       await configureCustomDomainForProject({ projectId: proyecto.railway_project_id, customDomain: finalUrl });
     }
 
-    if (empresa !== undefined) updateFields.nombre_personalizado = empresa.trim();
+    const nameFieldWasSubmitted = empresa !== undefined;
+    const finalProjectName = nameFieldWasSubmitted ? empresa.trim() : null;
+    const shouldRenameRailwayProject = Boolean(
+      finalProjectName &&
+      proyecto.railway_project_id &&
+      finalProjectName !== proyecto.nombre_personalizado
+    );
+
+    if (shouldRenameRailwayProject) {
+      await updateRailwayProjectName(proyecto.railway_project_id, finalProjectName);
+    }
+
+    if (nameFieldWasSubmitted) updateFields.nombre_personalizado = finalProjectName;
     if (proyecto_slug !== undefined) {
       const cleanedSlug = proyecto_slug.trim().toLowerCase();
       updateFields.proyecto_slug = cleanedSlug && cleanedSlug !== "null" && cleanedSlug !== "undefined" ? cleanedSlug : null;

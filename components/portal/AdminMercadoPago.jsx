@@ -2,6 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+function normalizePlanTipoLocal(planTipo) {
+  const value = String(planTipo || "").toLowerCase();
+  if (value === "chatbot" || value === "chatbot_ia") return "chatbot";
+  if (value === "standar" || value === "standard" || value === "masivo_meta") return "standar";
+  return value;
+}
 
 export default function AdminMercadoPago() {
   const [sellers, setSellers] = useState([]);
@@ -185,10 +191,10 @@ export default function AdminMercadoPago() {
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <span className="inline-block px-2.5 py-0.5 rounded-full text-[10px] font-heading font-bold uppercase tracking-wider bg-accent/8 text-accent border border-accent/16 mb-2">
-                            {plan.plan_tipo === "masivo_meta" ? "Envíos Masivos" : "Chatbot IA"}
+                            {normalizePlanTipoLocal(plan.plan_tipo) === "standar" ? "Envios Masivos" : "Chatbot IA"}
                           </span>
                           <h5 className="font-heading font-bold text-white text-sm">
-                            {plan.plan_tipo === "masivo_meta" ? `Variante ${plan.lineas_cantidad} Línea${plan.lineas_cantidad > 1 ? "s" : ""}` : "Variante única"}
+                            {`Variante ${plan.lineas_cantidad} Linea${plan.lineas_cantidad > 1 ? "s" : ""}`}
                           </h5>
                           <p className="text-white/35 text-[11px] mt-1 font-mono break-all select-all">
                             ID MP: {plan.id}

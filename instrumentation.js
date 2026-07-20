@@ -13,15 +13,23 @@ export async function register() {
         const adminDb = createAdminClient();
         const { data: pendingSubscriptions } = await adminDb
           .from("proyectos_railway")
-          .select("id, proyecto_slug")
+          .select("id, proyecto_slug, clientes!inner(subscription_status, plan, plan_tipo)")
           .eq("is_deleted", false)
           .eq("backoffice_activado", false)
           .eq("deploy_in_progress", false)
-          .not("mp_preapproval_id", "is", null);
+          .is("railway_project_id", null)
+          .in("clientes.subscription_status", ["active", "manual"]);
 
-        if (pendingSubscriptions && pendingSubscriptions.length > 0) {
-          console.log(`[Cron Sync Loop] Found ${pendingSubscriptions.length} pending subscription(s) to sync. Triggering...`);
-          for (const sub of pendingSubscriptions) {
+        const deployableSubscriptions = (pendingSubscriptions || []).filter((sub) => {
+          const client = sub.clientes;
+          const plan = String(client?.plan || "").toLowerCase();
+          const planTipo = String(client?.plan_tipo || "").toLowerCase();
+          return plan !== "personalizado" && planTipo !== "personalizado";
+        });
+
+        if (deployableSubscriptions.length > 0) {
+          console.log(`[Cron Sync Loop] Found ${deployableSubscriptions.length} pending subscription(s) to sync. Triggering...`);
+          for (const sub of deployableSubscriptions) {
             activateClientPortal(sub.id, adminDb)
               .then((res) => {
                 if (!res?.ignored) {

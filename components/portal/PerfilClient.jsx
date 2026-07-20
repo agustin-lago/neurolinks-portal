@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import PortalPageWrapper from "./layout/PortalPageWrapper";
 import GlassCard from "../ui/GlassCard";
 
-export default function PerfilClient({ user, isUserAdmin, clientDbData }) {
+export default function PerfilClient({ user, isUserAdmin, clientDbData, subscription }) {
   const [nombre, setNombre] = useState(clientDbData?.nombre || user.user_metadata?.nombre || "");
   const [empresa, setEmpresa] = useState(clientDbData?.empresa || user.user_metadata?.empresa || "");
   const [telefono, setTelefono] = useState(clientDbData?.telefono || user.user_metadata?.telefono || "");
@@ -174,7 +174,7 @@ export default function PerfilClient({ user, isUserAdmin, clientDbData }) {
   };
 
   return (
-    <PortalPageWrapper isUserAdmin={isUserAdmin} className="items-center justify-center">
+    <PortalPageWrapper isUserAdmin={isUserAdmin} subscription={subscription || clientDbData} className="items-center justify-center">
       <div className="w-full max-w-md lg:max-w-3xl">
 
         <div className="text-center mb-6 sm:mb-8">

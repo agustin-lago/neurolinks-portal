@@ -4,16 +4,17 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import PortalPageWrapper from "./layout/PortalPageWrapper";
 import GlassCard from "../ui/GlassCard";
+import { getPlanDisplayName, normalizePlanTipo } from "@/lib/subscription";
 
 const FEATURES_MAP = {
-  masivo_meta: [
+  standar: [
     "Envía campañas masivas por WhatsApp",
     "API Oficial de Meta integrada",
     "Estadísticas detalladas de envíos",
     "Soporte multi-dispositivo y multi-línea",
     "Acceso completo a plantillas aprobadas",
   ],
-  chatbot_ia: [
+  chatbot: [
     "Atención al cliente inteligente 24/7",
     "IA avanzada integrada con ChatGPT/Neurolinks",
     "Base de conocimiento personalizada",
@@ -23,13 +24,15 @@ const FEATURES_MAP = {
 };
 
 const PLAN_PRICES = {
-  masivo_meta: {
+  standar: {
     1: 63000,
-    2: 99000,
-    3: 120000,
+    2: 126000,
+    3: 189000,
   },
-  chatbot_ia: {
+  chatbot: {
     1: 210000,
+    2: 420000,
+    3: 630000,
   }
 };
 
@@ -45,37 +48,39 @@ export default function PagoClient({ cliente, planesPrincipales = [], isAdmin = 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   
-  // Set defaults: plan_tipo = 'masivo_meta', lineas_cantidad = 1 as per user requirements
-  const [activePlan, setActivePlan] = useState("masivo_meta");
+  // Default paid plan: Standar c/1 Linea
+  const [activePlan, setActivePlan] = useState("standar");
   const [linesCount, setLinesCount] = useState(1);
   const [region, setRegion] = useState("AR"); // AR = Argentina (MercadoPago), INT = Resto del Mundo (PayPal)
 
   // USD equivalents for international pricing
   const USD_PRICES = {
-    masivo_meta: {
+    standar: {
       1: 45,
-      2: 70,
-      3: 95,
+      2: 90,
+      3: 135,
     },
-    chatbot_ia: {
+    chatbot: {
       1: 150,
+      2: 300,
+      3: 450,
     }
   };
 
   // Helper to dynamically extract plan price from planesPrincipales, otherwise fallback to local constant
   const getDynamicPrice = (planTipo, lineas) => {
     const foundPlan = (planesPrincipales || []).find(
-      p => p.plan_tipo === planTipo && p.lineas_cantidad === lineas
+      p => normalizePlanTipo(p.plan_tipo) === normalizePlanTipo(planTipo) && Number(p.lineas_cantidad) === Number(lineas)
     );
-    return foundPlan ? foundPlan.monto : PLAN_PRICES[planTipo][lineas];
+    return foundPlan ? Number(foundPlan.precio ?? foundPlan.monto) : (PLAN_PRICES[planTipo]?.[lineas] ?? PLAN_PRICES[planTipo]?.[1] ?? 63000);
   };
 
   const currentPrice = getDynamicPrice(activePlan, linesCount);
-  const currentUsdPrice = USD_PRICES[activePlan][linesCount];
+  const currentUsdPrice = USD_PRICES[activePlan]?.[linesCount] ?? USD_PRICES[activePlan]?.[1] ?? 0;
 
   const handlePay = async () => {
     if (region === "INT") {
-      const planName = activePlan === "chatbot_ia" ? "Plus" : `Standard + ${linesCount}`;
+      const planName = getPlanDisplayName(activePlan, linesCount);
       const message = `Hola! Seleccioné el plan "${planName}" y quiero realizar mi pago desde el exterior (Resto del Mundo) vía PayPal. ¿Me ayudan con la activación manual?`;
       window.open(`https://wa.me/5491170644247?text=${encodeURIComponent(message)}`, "_blank");
       return;
@@ -147,7 +152,7 @@ export default function PagoClient({ cliente, planesPrincipales = [], isAdmin = 
   };
 
   return (
-    <PortalPageWrapper isUserAdmin={isAdmin} className="items-center justify-center">
+    <PortalPageWrapper isUserAdmin={isAdmin} subscription={cliente} className="items-center justify-center">
       <div className="w-full max-w-4xl">
       <div className="text-center mb-8">
         <p className="text-white/25 text-xs font-heading font-semibold tracking-widest uppercase mb-3 animate-pulse">
@@ -194,27 +199,27 @@ export default function PagoClient({ cliente, planesPrincipales = [], isAdmin = 
         {/* Option 1: Envíos Masivos */}
         <div
           onClick={() => {
-            setActivePlan("masivo_meta");
+            setActivePlan("standar");
             setLinesCount(1);
           }}
           className={`cursor-pointer p-6 rounded-2xl border transition-all duration-300 relative overflow-hidden flex flex-col justify-between ${
-            activePlan === "masivo_meta"
+            activePlan === "standar"
               ? "border-accent bg-accent/[0.04] shadow-[0_0_25px_rgba(0,153,255,0.12)]"
               : "border-white/[0.08] hover:border-white/[0.16] bg-white/[0.01] hover:bg-white/[0.02]"
           }`}
         >
-          {activePlan === "masivo_meta" && (
+          {activePlan === "standar" && (
             <div className="absolute top-0 right-0 w-24 h-24 bg-accent/10 rounded-full blur-xl pointer-events-none" />
           )}
           <div>
             <div className="flex items-center justify-between mb-3">
               <span className="text-white/30 text-[10px] font-heading font-bold uppercase tracking-wider">Plan Oficial</span>
-              {activePlan === "masivo_meta" && (
+              {activePlan === "standar" && (
                 <span className="w-2.5 h-2.5 rounded-full bg-accent animate-pulse" />
               )}
             </div>
             <h3 className="font-heading font-extrabold text-white text-lg mb-1.5">
-              Standard + {linesCount}
+              Standar c/{linesCount} Linea{linesCount === 1 ? "" : "s"}
             </h3>
             <p className="text-white/45 text-xs leading-relaxed">
               Ideal para marketing y notificaciones masivas automatizadas conectadas al canal oficial de WhatsApp de Meta.
@@ -224,8 +229,8 @@ export default function PagoClient({ cliente, planesPrincipales = [], isAdmin = 
             <span className="text-white/30 text-xs">Desde</span>
             <span className="font-heading font-extrabold text-white text-2xl">
               {region === "AR" 
-                ? `$${getDynamicPrice("masivo_meta", 1).toLocaleString("es-AR")}`
-                : `U$D ${USD_PRICES.masivo_meta[1]}`
+                ? `$${getDynamicPrice("standar", 1).toLocaleString("es-AR")}`
+                : `U$D ${USD_PRICES.standar[1]}`
               }
             </span>
             <span className="text-white/30 text-xs">
@@ -237,27 +242,27 @@ export default function PagoClient({ cliente, planesPrincipales = [], isAdmin = 
         {/* Option 2: Chatbot IA */}
         <div
           onClick={() => {
-            setActivePlan("chatbot_ia");
-            setLinesCount(1);
+            setActivePlan("chatbot");
+            setLinesCount(Math.min(linesCount || 1, 3));
           }}
           className={`cursor-pointer p-6 rounded-2xl border transition-all duration-300 relative overflow-hidden flex flex-col justify-between ${
-            activePlan === "chatbot_ia"
+            activePlan === "chatbot"
               ? "border-accent bg-accent/[0.04] shadow-[0_0_25px_rgba(0,153,255,0.12)]"
               : "border-white/[0.08] hover:border-white/[0.16] bg-white/[0.01] hover:bg-white/[0.02]"
           }`}
         >
-          {activePlan === "chatbot_ia" && (
+          {activePlan === "chatbot" && (
             <div className="absolute top-0 right-0 w-24 h-24 bg-accent/10 rounded-full blur-xl pointer-events-none" />
           )}
           <div>
             <div className="flex items-center justify-between mb-3">
               <span className="text-white/30 text-[10px] font-heading font-bold uppercase tracking-wider">Automatizado</span>
-              {activePlan === "chatbot_ia" && (
+              {activePlan === "chatbot" && (
                 <span className="w-2.5 h-2.5 rounded-full bg-accent animate-pulse" />
               )}
             </div>
             <h3 className="font-heading font-extrabold text-white text-lg mb-1.5">
-              Plus
+              Chatbot
             </h3>
             <p className="text-white/45 text-xs leading-relaxed">
               Atención inteligente entrenada con IA para resolver dudas de clientes, cotizar y derivar chats sin intervenciones.
@@ -266,8 +271,8 @@ export default function PagoClient({ cliente, planesPrincipales = [], isAdmin = 
           <div className="mt-6 flex items-baseline gap-1.5">
             <span className="font-heading font-extrabold text-white text-2xl">
               {region === "AR" 
-                ? `$${getDynamicPrice("chatbot_ia", 1).toLocaleString("es-AR")}`
-                : `U$D ${USD_PRICES.chatbot_ia[1]}`
+                ? `$${getDynamicPrice("chatbot", 1).toLocaleString("es-AR")}`
+                : `U$D ${USD_PRICES.chatbot[1]}`
               }
             </span>
             <span className="text-white/30 text-xs">
@@ -286,37 +291,30 @@ export default function PagoClient({ cliente, planesPrincipales = [], isAdmin = 
               Configurá tu suscripción
             </h4>
 
-            {activePlan === "masivo_meta" ? (
-              <div className="mb-5">
-                <p className="text-white/40 text-xs mb-2">Cantidad de Líneas de WhatsApp asociadas:</p>
-                <div className="flex gap-2">
-                  {[1, 2, 3].map((num) => (
-                    <button
-                      key={num}
-                      type="button"
-                      onClick={() => setLinesCount(num)}
-                      className={`flex-1 py-2.5 rounded-xl border text-center transition-all ${
-                        linesCount === num
-                          ? "border-accent/50 bg-accent/8 text-white font-heading font-bold"
-                          : "border-white/[0.08] hover:border-white/[0.15] bg-white/[0.02] text-white/50 text-sm"
-                      }`}
-                    >
-                      {num} {num === 1 ? "Línea" : "Líneas"}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[10px] text-white/30 mt-2">
-                  ⚠️ Se {linesCount === 1 ? "desplegará" : "desplegarán"} {linesCount} {linesCount === 1 ? "proyecto independiente asociado" : "proyectos independientes asociados"} a tu cuenta.
-                </p>
+            <div className="mb-5">
+              <p className="text-white/40 text-xs mb-2">
+                {activePlan === "standar" ? "Cantidad de lineas de WhatsApp asociadas:" : "Cantidad de instancias con asistente IA:"}
+              </p>
+              <div className="flex gap-2">
+                {[1, 2, 3].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setLinesCount(num)}
+                    className={`flex-1 py-2.5 rounded-xl border text-center transition-all ${
+                      linesCount === num
+                        ? "border-accent/50 bg-accent/8 text-white font-heading font-bold"
+                        : "border-white/[0.08] hover:border-white/[0.15] bg-white/[0.02] text-white/50 text-sm"
+                    }`}
+                  >
+                    {num} {num === 1 ? "Linea" : "Lineas"}
+                  </button>
+                ))}
               </div>
-            ) : (
-              <div className="mb-5">
-                <p className="text-white/40 text-xs mb-2">Líneas de WhatsApp incluidas:</p>
-                <div className="py-2.5 px-4 rounded-xl border border-white/[0.08] bg-white/[0.02] text-white/60 text-xs inline-block">
-                  ⚠️ Se desplegará 1 proyecto independiente asociado a tu cuenta.
-                </div>
-              </div>
-            )}
+              <p className="text-[10px] text-white/30 mt-2">
+                Se habilitara un cupo de {linesCount} instancia{linesCount === 1 ? "" : "s"} para tu cuenta.
+              </p>
+            </div>
 
 
 

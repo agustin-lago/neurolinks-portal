@@ -7,12 +7,17 @@ import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { createClient } from "@/lib/supabase/client";
 
-export default function PortalHeader({ isUserAdmin }) {
+export default function PortalHeader({ isUserAdmin, subscription }) {
   const [loadingLogout, setLoadingLogout] = useState(false);
   const navPillRef = useRef(null);
   const [hoverBubble, setHoverBubble] = useState(null);
   const [activeBubble, setActiveBubble] = useState(null);
   const pathname = usePathname();
+  const planLabel = subscription?.plan || "Sin plan";
+  const status = String(subscription?.subscription_status || "pending").toLowerCase();
+  const badgeClass = status === "active" || status === "manual"
+    ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-200"
+    : "border-amber-400/25 bg-amber-400/10 text-amber-200";
 
   useEffect(() => {
     if (!navPillRef.current) return;
@@ -56,9 +61,14 @@ export default function PortalHeader({ isUserAdmin }) {
             className="object-contain w-8 sm:w-10 h-auto"
             priority
           />
-          <span className="hidden sm:inline-block px-2.5 py-1 rounded-md bg-white/[0.04] border border-white/[0.08] text-[10px] text-white/50 font-heading font-semibold tracking-wider uppercase">
-            Portal
-          </span>
+          <div className="hidden sm:flex items-center gap-2">
+            <span className="px-2.5 py-1 rounded-md bg-white/[0.04] border border-white/[0.08] text-[10px] text-white/50 font-heading font-semibold tracking-wider uppercase">
+              Portal
+            </span>
+            <span className={`px-2.5 py-1 rounded-md border text-[10px] font-heading font-semibold tracking-wide ${badgeClass}`}>
+              {planLabel}
+            </span>
+          </div>
         </div>
 
         <nav

@@ -12,11 +12,28 @@ import GlassCard from "../ui/GlassCard";
 
 const MySwal = withReactContent(Swal);
 
-export default function DashboardClient({ user, initialClientes, initialRailwayProjects, isUserAdmin }) {
+function normalizePlanTipoLocal(planTipo) {
+  const value = String(planTipo || "").toLowerCase();
+  if (value === "chatbot" || value === "chatbot_ia") return "chatbot";
+  if (value === "standar" || value === "standard" || value === "masivo_meta") return "standar";
+  return value;
+}
+
+function isChatbotPlanLocal(planTipo) {
+  return normalizePlanTipoLocal(planTipo) === "chatbot";
+}
+
+export default function DashboardClient({ user, initialClientes, initialRailwayProjects, isUserAdmin, subscription }) {
   const [clientes, setClientes] = useState(initialClientes);
   const [loadingLogout, setLoadingLogout] = useState(false);
   const scrollContainerRef = useRef(null);
   const pathname = usePathname();
+  const slotLimit = Number(subscription?.lineas_cantidad);
+  const hasSlotLimit = Number.isFinite(slotLimit) && slotLimit > 0;
+  const usedSlots = clientes.length;
+  const isCustomPlan = String(subscription?.plan || "").toLowerCase() === "personalizado" || String(subscription?.plan_tipo || "").toLowerCase() === "personalizado";
+  const canCreateMoreInstances = !isCustomPlan && (!hasSlotLimit || usedSlots < slotLimit);
+  const usageLabel = hasSlotLimit ? `${usedSlots}/${slotLimit} instancias` : `${usedSlots} instancia${usedSlots === 1 ? "" : "s"}`;
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -46,20 +63,13 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
     return slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   };
 
-  const getProjectName = (cliente, lineIndex = 0) => {
-    const rwId = cliente.tokens_backoffice && cliente.tokens_backoffice[lineIndex] ? cliente.tokens_backoffice[lineIndex] : null;
+  const getProjectName = (cliente) => {
+    const rwId = cliente.railway_project_id || null;
     if (rwId && initialRailwayProjects) {
       const rwProject = initialRailwayProjects.find(p => p.id === rwId || p.railway_project_id === rwId);
-      if (rwProject && rwProject.name) {
-        return rwProject.name;
-      }
+      if (rwProject?.name) return rwProject.name;
     }
-    // Fallback if not found or pending deploy
-    const baseSlugName = formatSlug(cliente.proyecto_slug);
-    if (cliente.plan_tipo === 'masivo_meta' && lineIndex > 0) {
-      return `${baseSlugName} Linea ${lineIndex + 1}`;
-    }
-    return baseSlugName;
+    return cliente.proyecto_nombre_db || formatSlug(cliente.proyecto_slug) || "Instancia";
   };
 
   const isRecentActivation = (cliente) => {
@@ -75,7 +85,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
     return clean.replace(/^(https?:\/\/)?(www\.)?/, "").split("/")[0];
   };
 
-  const getPortalUrl = (cliente, index = null) => {
+  const getPortalUrl = (cliente) => {
     if (!cliente.backoffice_activado) return "";
 
     // Check if it's a recent activation (<15 min) and we have a public URL
@@ -84,11 +94,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
       if (pubUrl.startsWith("[")) {
         try {
           const parsed = JSON.parse(pubUrl);
-          if (index !== null) {
-            pubUrl = parsed[index] || parsed[0] || null;
-          } else {
-            pubUrl = parsed[0] || null;
-          }
+          pubUrl = parsed[0] || null;
         } catch (e) {
           console.error("Error parsing railway_public_url array:", e);
         }
@@ -99,9 +105,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
       }
     }
 
-    const customUrl = index !== null && cliente.deployment_urls && cliente.deployment_urls[index]
-      ? normalizeHostValue(cliente.deployment_urls[index])
-      : normalizeHostValue(cliente.deployment_url);
+    const customUrl = normalizeHostValue(cliente.deployment_url);
     if (customUrl) return `https://${customUrl}`;
 
     const railwayUrl = normalizeHostValue(cliente.railway_public_url);
@@ -121,7 +125,6 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
     empresa: "",
     proyecto_slug: "",
     deployment_url: "",
-    deployment_urls: [],
     observaciones: []
   });
   const [editLoading, setEditLoading] = useState(false);
@@ -132,10 +135,9 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
     setEditingClient(cliente);
     setEditForm({
       id: cliente.id,
-      empresa: cliente.proyecto_nombre_db || getProjectName(cliente, 0),
+      empresa: cliente.proyecto_nombre_db || getProjectName(cliente),
       proyecto_slug: cliente.proyecto_slug || "",
       deployment_url: cliente.deployment_url || "",
-      deployment_urls: cliente.deployment_urls ? [...cliente.deployment_urls] : [],
       observaciones: cliente.observaciones ? [...cliente.observaciones] : []
     });
   };
@@ -156,26 +158,15 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
       // Update state locally
       setClientes(prev => prev.map(c => {
         if (c.id === editForm.id) {
-          let finalUrl = null;
-          let finalUrls = [];
-          if (editForm.deployment_urls && editForm.deployment_urls.length > 0) {
-            finalUrls = editForm.deployment_urls.map(url => {
-              if (!url) return null;
-              let cleaned = url.trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, "");
-              return cleaned.split("/")[0];
-            }).filter(Boolean);
-            finalUrl = finalUrls[0] || null;
-          } else if (editForm.deployment_url) {
-            finalUrl = editForm.deployment_url.trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, "").split("/")[0];
-            finalUrls = finalUrl ? [finalUrl] : [];
-          }
+          const finalUrl = editForm.deployment_url
+            ? editForm.deployment_url.trim().toLowerCase().replace(/^(https?:\/\/)?(www\.)?/, "").split("/")[0]
+            : null;
 
           return {
             ...c,
             empresa: editForm.empresa.trim(),
             proyecto_slug: editForm.proyecto_slug.trim().toLowerCase(),
             deployment_url: finalUrl,
-            deployment_urls: finalUrls,
             observaciones: editForm.observaciones.map(o => o?.trim() || "")
           };
         }
@@ -192,7 +183,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
 
   const confirmDeleteLogic = async (cliente) => {
     const targetId = cliente.id;
-    const isActiveOrDeploying = cliente.backoffice_activado || cliente.mp_preapproval_id;
+    const isActiveOrDeploying = cliente.backoffice_activado || cliente.deploy_in_progress || cliente.railway_project_id;
 
     setDeletingId(targetId);
     try {
@@ -243,7 +234,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
   };
 
   const handleDelete = async (cliente) => {
-    const isActiveOrDeploying = cliente.backoffice_activado || cliente.mp_preapproval_id;
+    const isActiveOrDeploying = cliente.backoffice_activado || cliente.deploy_in_progress || cliente.railway_project_id;
     
     if (isActiveOrDeploying) {
       const result = await MySwal.fire({
@@ -253,13 +244,12 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
           <div className="text-left mt-2">
             <div className="text-white/80 text-xs mb-4 leading-relaxed bg-red-950/20 border border-red-500/20 p-4 rounded-xl space-y-2">
               <strong className="text-red-400 block mb-1">Esta accion destructiva realizara lo siguiente:</strong>
-              <div>- Se <strong>cancelara la suscripcion</strong> en Mercado Pago para detener cobros futuros.</div>
-              <div>- Se <strong>eliminara por completo el servidor</strong> en Railway.</div>
+              <div>- Se <strong>eliminara por completo el servidor</strong> en Railway si existe.</div>
               <div>- Se <strong>borraran permanentemente todos los chats y mensajes</strong>.</div>
               <div>- Se daran de baja los registros DNS.</div>
             </div>
             <p className="text-white/60 text-xs mb-3">
-              Para confirmar la baja definitiva de <strong className="text-white">"{cliente.proyecto_nombre_db || getProjectName(cliente, 0)}"</strong>, por favor escribe el texto exacto <strong className="text-accent-light font-mono select-all">{cliente.proyecto_slug}</strong> en el cuadro de abajo:
+              Para confirmar la baja definitiva de <strong className="text-white">"{cliente.proyecto_nombre_db || getProjectName(cliente)}"</strong>, por favor escribe el texto exacto <strong className="text-accent-light font-mono select-all">{cliente.proyecto_slug}</strong> en el cuadro de abajo:
             </p>
           </div>
         ),
@@ -327,7 +317,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
 
   // Poll Supabase to update status of deploying instances
   useEffect(() => {
-    const hasDeploying = clientes.some(c => !c.backoffice_activado && c.mp_preapproval_id);
+    const hasDeploying = !isCustomPlan && clientes.some(c => c.deploy_in_progress || (!c.backoffice_activado && (c.mp_preapproval_id || c.subscription_status === "active" || c.subscription_status === "manual")));
     if (!hasDeploying) return;
 
     const interval = setInterval(async () => {
@@ -335,7 +325,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
         const supabase = createClient();
         const { data: updated, error } = await supabase
           .from("proyectos_railway")
-          .select("id, railway_project_id, backoffice_activado, deployment_url, mp_preapproval_id, plan, plan_tipo, lineas_cantidad, railway_public_url, activated_at, updated_at, observaciones, clientes!inner(auth_user_id)")
+          .select("id, railway_project_id, backoffice_activado, deployment_url, railway_public_url, activated_at, updated_at, observaciones, deploy_in_progress, clientes!inner(auth_user_id, plan, plan_tipo, lineas_cantidad, abono, vencimiento, mp_preapproval_id, subscription_status, subscription_source)")
           .eq("clientes.auth_user_id", user.id)
           .eq("is_deleted", false);
 
@@ -350,15 +340,18 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
                   ...oldClient,
                   backoffice_activado: match.backoffice_activado || Boolean(match.railway_project_id),
                   deployment_url: match.deployment_url,
-                  deployment_urls: match.deployment_url ? [match.deployment_url] : [],
-                  tokens_backoffice: match.railway_project_id ? [match.railway_project_id] : [],
                   railway_public_url: match.railway_public_url,
                   activated_at: match.activated_at,
                   updated_at: match.updated_at,
-                  mp_preapproval_id: match.mp_preapproval_id,
-                  plan: match.plan,
-                  plan_tipo: match.plan_tipo,
-                  lineas_cantidad: match.lineas_cantidad,
+                  mp_preapproval_id: match.clientes?.mp_preapproval_id,
+                  plan: match.clientes?.plan,
+                  plan_tipo: match.clientes?.plan_tipo,
+                  lineas_cantidad: match.clientes?.lineas_cantidad,
+                  abono: match.clientes?.abono,
+                  vencimiento: match.clientes?.vencimiento,
+                  subscription_status: match.clientes?.subscription_status,
+                  subscription_source: match.clientes?.subscription_source,
+                  deploy_in_progress: match.deploy_in_progress,
                   observaciones: match.observaciones
                 };
               }
@@ -375,7 +368,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
   }, [clientes, user.id]);
 
   return (
-    <PortalPageWrapper isUserAdmin={isAdmin} className="max-w-6xl mx-auto w-full px-6 py-12">
+    <PortalPageWrapper isUserAdmin={isAdmin} subscription={subscription} className="max-w-6xl mx-auto w-full px-6 py-12">
 
         {/* Welcome Section */}
         <div className="mb-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -400,10 +393,10 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
               Crea tu primera instancia para habilitar tus chatbots o campanas de WhatsApp.
             </p>
             <Link
-              href="/portal/dashboard/nuevo"
-              className="btn-gradient inline-block px-5 py-3 rounded-xl font-heading font-semibold text-xs"
+              href={canCreateMoreInstances ? "/portal/dashboard/nuevo" : "#"}
+              className={`btn-gradient inline-block px-5 py-3 rounded-xl font-heading font-semibold text-xs ${canCreateMoreInstances ? "" : "opacity-50 pointer-events-none"}`}
             >
-              Generar mi primer producto
+              {isCustomPlan ? "Activacion manual requerida" : canCreateMoreInstances ? "Generar mi primer producto" : `Cupo completo: ${usageLabel}`}
             </Link>
           </div>
         ) : (
@@ -412,8 +405,8 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
             {/* Create new instance card - FIXED ON LEFT */}
             <div className="w-full lg:w-[320px] shrink-0 flex flex-col">
               <Link
-                href="/portal/dashboard/nuevo"
-                className="flex-1 glass-strong rounded-2xl border border-dashed border-white/10 hover:border-solid hover:border-accent/40 bg-white/[0.04] hover:bg-white/[0.06] p-6 flex flex-col items-center justify-center text-center min-h-[260px] transition-all duration-500 group relative overflow-hidden"
+                href={canCreateMoreInstances ? "/portal/dashboard/nuevo" : "#"}
+                className={`flex-1 glass-strong rounded-2xl border border-dashed border-white/10 p-6 flex flex-col items-center justify-center text-center min-h-[260px] transition-all duration-500 group relative overflow-hidden ${canCreateMoreInstances ? "hover:border-solid hover:border-accent/40 bg-white/[0.04] hover:bg-white/[0.06]" : "opacity-50 pointer-events-none bg-white/[0.02]"}`}
               >
                 {/* Background Glow on Hover */}
                 <div className="absolute inset-0 bg-gradient-to-br from-accent/0 via-accent/0 to-accent/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
@@ -434,7 +427,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
                   Generar otra instancia
                 </h3>
                 <p className="relative z-10 text-white/30 group-hover:text-white/50 text-xs max-w-[200px] mx-auto transition-colors duration-300 leading-relaxed">
-                  Adquiri otro chatbot o canal de envios masivos para tu empresa.
+                  {isCustomPlan ? "Las instancias de este plan se activan manualmente." : canCreateMoreInstances ? "Agrega una instancia dentro del cupo de tu plan." : `Cupo completo: ${usageLabel}.`}
                 </p>
               </Link>
             </div>
@@ -457,117 +450,8 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
             {/* Loop through each client row */}
             {clientes.flatMap((cliente) => {
 
-              // 1. If product has multiple tokens or multiple lines, render a card for each
-              const hasMultipleTokens = cliente.tokens_backoffice && cliente.tokens_backoffice.length > 1;
-              const hasMultipleLines = cliente.lineas_cantidad > 1;
-              
-              if (cliente.backoffice_activado && (hasMultipleTokens || hasMultipleLines)) {
-                const totalCards = hasMultipleTokens ? cliente.tokens_backoffice.length : (Number(cliente.lineas_cantidad) || 1);
-                const urls = cliente.deployment_urls || [];
-
-                return Array.from({ length: totalCards }).map((_, i) => {
-                  const targetUrl = urls[i] || cliente.deployment_url;
-
-                  return (
-                    <div
-                      key={`${cliente.id}-line-${i}`}
-                      className="shrink-0 w-[300px] sm:w-[320px] glass-strong rounded-2xl border border-white/[0.05] hover:border-accent/40 bg-white/[0.04] hover:bg-white/[0.06] p-6 flex flex-col justify-between relative overflow-hidden transition-all duration-300 group hover:shadow-[0_0_20px_rgba(0,153,255,0.06)]"
-                    >
-                      <div>
-                        {/* Status Badge */}
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="px-2.5 py-0.5 rounded-full text-[9px] font-heading font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/18 flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                            Activo
-                          </span>
-                          <span className="text-[10px] text-white/30 font-heading uppercase tracking-wide">
-                            Linea {i + 1}
-                          </span>
-                        </div>
-
-                        {/* Title & Product Type */}
-                        <h3 className="font-heading font-extrabold text-white text-lg mb-0.5 leading-snug group-hover:text-accent-light transition-colors">
-                          {getProjectName(cliente, i)}
-                        </h3>
-                        {cliente.observaciones && cliente.observaciones[i] ? (
-                          <p className="text-cyan-400 font-semibold text-xs mb-2">
-                            {cliente.observaciones[i]}
-                          </p>
-                        ) : (
-                          <p className="text-white/20 text-xs italic mb-2">
-                            Sin observacion
-                          </p>
-                        )}
-                        <p className="text-white/35 text-xs mb-4">
-                          {cliente.plan}
-                        </p>
-
-                        <div className="h-px bg-white/[0.04] my-3" />
-
-                        {/* Specs */}
-                        <div className="space-y-2 text-xs text-white/50">
-                          <div className="flex justify-between items-center">
-                            <span>Tipo:</span>
-                            <span className="text-white/80 font-semibold flex items-center gap-1.5">
-                              {cliente.plan_tipo === "chatbot_ia" ? (
-                                <>
-                                  <svg className="w-3.5 h-3.5 text-accent-light" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 10.5h.008v.008H8.25V10.5Zm5.25 0h.008v.008h-.008V10.5Zm-1.5 5.25h.008v.008h-.008v-.008Zm4.5-9h1.5a2.25 2.25 0 0 1 2.25 2.25v9a2.25 2.25 0 0 1-2.25 2.25H4.5A2.25 2.25 0 0 1 2.25 19.5v-9A2.25 2.25 0 0 1 4.5 8.25h1.5m4.5-3.75a3 3 0 1 1 6 0" />
-                                  </svg>
-                                  Chatbot IA
-                                </>
-                              ) : (
-                                <>
-                                  <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
-                                  </svg>
-                                  API Meta
-                                </>
-                              )}
-                            </span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Slug:</span>
-                            <span className="text-white/70 font-mono text-[10px]">
-                              {cliente.proyecto_slug}-linea{i + 1}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Action Link */}
-                      <div className="mt-6 flex gap-2">
-                        <div className="flex-1 flex flex-col gap-1">
-                          <a
-                            href={getPortalUrl(cliente, i)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="flex items-center justify-center gap-2 bg-white/[0.03] group-hover:bg-accent border border-white/[0.08] group-hover:border-accent/40 rounded-xl py-3 text-xs font-semibold text-white transition-all duration-200"
-                          >
-                            {hasPortalUrl ? "Acceder al Backoffice" : "URL pendiente"}
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                            </svg>
-                          </a>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleEditClick(cliente)}
-                          className="px-3.5 flex items-center justify-center bg-white/[0.03] hover:bg-accent border border-white/[0.08] hover:border-accent/40 rounded-xl text-white transition-all duration-200 shrink-0"
-                          title="Editar Instancia"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.83 20.82a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                });
-              }
-
               const isActive = cliente.backoffice_activado && (cliente.deployment_url || cliente.railway_public_url);
-              const isDeploying = !cliente.backoffice_activado && cliente.mp_preapproval_id;
+              const isDeploying = !isCustomPlan && (cliente.deploy_in_progress || (!cliente.backoffice_activado && (cliente.mp_preapproval_id || cliente.subscription_status === "active" || cliente.subscription_status === "manual")));
 
               return (
                 <div
@@ -602,7 +486,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
 
                     {/* Title & Product Type */}
                     <h3 className="font-heading font-extrabold text-white text-lg mb-0.5 leading-snug group-hover:text-accent-light transition-colors">
-                      {getProjectName(cliente, 0)}
+                      {getProjectName(cliente)}
                     </h3>
                     {cliente.observaciones && cliente.observaciones[0] && (
                       <p className="text-cyan-400 font-semibold text-xs mb-2">
@@ -620,7 +504,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
                       <div className="flex justify-between items-center">
                         <span>Tipo:</span>
                         <span className="text-white/80 font-semibold flex items-center gap-1.5">
-                          {cliente.plan_tipo === "chatbot_ia" ? (
+                          {isChatbotPlanLocal(cliente.plan_tipo) ? (
                             <>
                               <svg className="w-3.5 h-3.5 text-accent-light" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 10.5h.008v.008H8.25V10.5Zm5.25 0h.008v.008h-.008V10.5Zm-1.5 5.25h.008v.008h-.008v-.008Zm4.5-9h1.5a2.25 2.25 0 0 1 2.25 2.25v9a2.25 2.25 0 0 1-2.25 2.25H4.5A2.25 2.25 0 0 1 2.25 19.5v-9A2.25 2.25 0 0 1 4.5 8.25h1.5m4.5-3.75a3 3 0 1 1 6 0" />
@@ -689,7 +573,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
                           onClick={() => handleDelete(cliente)}
                           disabled={deletingId === cliente.id}
                           className="px-3.5 flex items-center justify-center bg-red-500/[0.04] hover:bg-red-500 border border-red-500/20 hover:border-red-500 rounded-xl text-red-400 hover:text-white transition-all duration-200 disabled:opacity-40 shrink-0"
-                          title="Eliminar Instancia y Suscripcion"
+                          title="Eliminar instancia"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.34 9m-4.78 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
@@ -713,7 +597,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
                           onClick={() => handleDelete(cliente)}
                           disabled={deletingId === cliente.id}
                           className="px-3.5 flex items-center justify-center bg-red-500/[0.04] hover:bg-red-500 border border-red-500/20 hover:border-red-500 rounded-xl text-red-400 hover:text-white transition-all duration-200 disabled:opacity-40 shrink-0"
-                          title="Eliminar Instancia y Suscripcion"
+                          title="Eliminar instancia"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.34 9m-4.78 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
@@ -835,35 +719,13 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
                 <label className="block text-white/50 text-xs font-semibold mb-1.5 uppercase tracking-wider">
                   Enlace personalizado
                 </label>
-
-                {editingClient.lineas_cantidad > 1 ? (
-                  <div className="space-y-3">
-                    {Array.from({ length: Number(editingClient.lineas_cantidad) }).map((_, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <span className="text-[10px] text-white/30 w-12 font-mono shrink-0">Linea {idx + 1}:</span>
-                        <input
-                          type="text"
-                          value={editForm.deployment_urls[idx] || ""}
-                          onChange={(e) => {
-                            const newUrls = [...editForm.deployment_urls];
-                            newUrls[idx] = e.target.value;
-                            setEditForm(prev => ({ ...prev, deployment_urls: newUrls }));
-                          }}
-                          placeholder={`ej: linea${idx + 1}.miempresa.com`}
-                          className="flex-1 bg-white/[0.04] border border-white/[0.08] focus:border-accent/40 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/20 focus:outline-none font-mono"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <input
-                    type="text"
-                    value={editForm.deployment_url}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, deployment_url: e.target.value }))}
-                    placeholder="ej: ganamos.clientesneurolinks.com"
-                    className="w-full bg-white/[0.04] border border-white/[0.08] focus:border-accent/40 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/20 focus:outline-none font-mono"
-                  />
-                )}
+                <input
+                  type="text"
+                  value={editForm.deployment_url}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, deployment_url: e.target.value }))}
+                  placeholder="ej: ganamos.clientesneurolinks.com"
+                  className="w-full bg-white/[0.04] border border-white/[0.08] focus:border-accent/40 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/20 focus:outline-none font-mono"
+                />
                 <span className="text-[10px] text-white/30 mt-1 block">
                   Si lo dejas vacio, se usa la URL publica de Railway. Si cargas un subdominio de clientesneurolinks.com, se configura Railway y Hostinger.
                 </span>
@@ -872,46 +734,23 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
               {/* Observacion / Identificacion de linea */}
               <div>
                 <label className="block text-white/50 text-xs font-semibold mb-1.5 uppercase tracking-wider">
-                  {editingClient.lineas_cantidad > 1 ? "Observaciones por linea" : "Observacion / Nota"}
+                  Observacion / Nota
                 </label>
-
-                {editingClient.lineas_cantidad > 1 ? (
-                  <div className="space-y-3">
-                    {Array.from({ length: Number(editingClient.lineas_cantidad) }).map((_, idx) => (
-                      <div key={idx} className="flex items-center gap-2">
-                        <span className="text-[10px] text-white/30 w-12 font-mono shrink-0">Linea {idx + 1}:</span>
-                        <input
-                          type="text"
-                          value={editForm.observaciones[idx] || ""}
-                          onChange={(e) => {
-                            const newObs = [...editForm.observaciones];
-                            newObs[idx] = e.target.value;
-                            setEditForm(prev => ({ ...prev, observaciones: newObs }));
-                          }}
-                          placeholder={`ej: Linea de ${idx === 0 ? "Mariana" : idx === 1 ? "Nara" : "Guchi"}`}
-                          className="flex-1 bg-white/[0.04] border border-white/[0.08] focus:border-[#0099ff]/40 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/20 focus:outline-none"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <input
-                    type="text"
-                    value={editForm.observaciones[0] || ""}
-                    onChange={(e) => {
-                      const newObs = [...editForm.observaciones];
-                      newObs[0] = e.target.value;
-                      setEditForm(prev => ({ ...prev, observaciones: newObs }));
-                    }}
-                    placeholder="ej: Servidor Principal / Campanas"
-                    className="w-full bg-white/[0.04] border border-white/[0.08] focus:border-[#0099ff]/40 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/20 focus:outline-none"
-                  />
-                )}
+                <input
+                  type="text"
+                  value={editForm.observaciones[0] || ""}
+                  onChange={(e) => {
+                    const newObs = [...editForm.observaciones];
+                    newObs[0] = e.target.value;
+                    setEditForm(prev => ({ ...prev, observaciones: newObs }));
+                  }}
+                  placeholder="ej: Servidor Principal / Campanas"
+                  className="w-full bg-white/[0.04] border border-white/[0.08] focus:border-[#0099ff]/40 rounded-xl px-4 py-2.5 text-xs text-white placeholder-white/20 focus:outline-none"
+                />
                 <span className="text-[10px] text-white/30 mt-1 block">
                   Permite diferenciar las distintas lineas o instancias en el listado.
                 </span>
               </div>
-
               {/* Botones */}
               <div className="flex justify-end gap-3 pt-3 border-t border-white/[0.05] mt-6">
                 <button
