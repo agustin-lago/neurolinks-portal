@@ -9,6 +9,7 @@ import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 import PortalPageWrapper from "./layout/PortalPageWrapper";
 import GlassCard from "../ui/GlassCard";
+import { createClient } from "../../lib/supabase/client";
 
 const MySwal = withReactContent(Swal);
 
@@ -58,18 +59,87 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
     return () => container.removeEventListener("wheel", handleWheel);
   }, []);
 
+  useEffect(() => {
+    if (!subscription?.id || !user?.id) return;
+
+    const supabase = createClient();
+    const mapRealtimeProject = (project, previous = {}) => ({
+      ...previous,
+      ...project,
+      backoffice_activado: Boolean(project.backoffice_activado || project.railway_project_id),
+      nombre: subscription.nombre || previous.nombre || user.email,
+      empresa: previous.empresa || subscription.empresa || "",
+      proyecto_nombre_db: project.nombre_personalizado || previous.proyecto_nombre_db || "",
+      is_admin: Boolean(subscription.is_admin || previous.is_admin),
+      plan: subscription.plan,
+      plan_tipo: subscription.plan_tipo,
+      lineas_cantidad: subscription.lineas_cantidad,
+      abono: subscription.abono,
+      vencimiento: subscription.vencimiento,
+      mp_preapproval_id: subscription.mp_preapproval_id,
+      subscription_status: subscription.subscription_status,
+      subscription_source: subscription.subscription_source,
+      observaciones: Array.isArray(project.observaciones) ? project.observaciones : []
+    });
+
+    const channel = supabase
+      .channel(`portal-proyectos-railway-${subscription.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "proyectos_railway", filter: `cliente_id=eq.${subscription.id}` },
+        (payload) => {
+          const project = payload.new || payload.old;
+          if (!project?.id) return;
+
+          if (payload.eventType === "DELETE" || project.is_deleted) {
+            setClientes(prev => prev.filter(cliente => cliente.id !== project.id));
+            return;
+          }
+
+          setClientes(prev => {
+            const existing = prev.find(cliente => cliente.id === project.id);
+            const nextProject = mapRealtimeProject(project, existing);
+            if (existing) {
+              return prev.map(cliente => cliente.id === project.id ? nextProject : cliente);
+            }
+            return [nextProject, ...prev];
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [
+    subscription?.id,
+    subscription?.nombre,
+    subscription?.empresa,
+    subscription?.is_admin,
+    subscription?.plan,
+    subscription?.plan_tipo,
+    subscription?.lineas_cantidad,
+    subscription?.abono,
+    subscription?.vencimiento,
+    subscription?.mp_preapproval_id,
+    subscription?.subscription_status,
+    subscription?.subscription_source,
+    user?.id,
+    user?.email
+  ]);
   const formatSlug = (slug) => {
     if (!slug) return "";
     return slug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   };
 
   const getProjectName = (cliente) => {
+    if (cliente.proyecto_nombre_db) return cliente.proyecto_nombre_db;
     const rwId = cliente.railway_project_id || null;
     if (rwId && initialRailwayProjects) {
       const rwProject = initialRailwayProjects.find(p => p.id === rwId || p.railway_project_id === rwId);
       if (rwProject?.name) return rwProject.name;
     }
-    return cliente.proyecto_nombre_db || formatSlug(cliente.proyecto_slug) || "Instancia";
+    return formatSlug(cliente.proyecto_slug) || "Instancia";
   };
 
   const isRecentActivation = (cliente) => {
@@ -165,6 +235,7 @@ export default function DashboardClient({ user, initialClientes, initialRailwayP
           return {
             ...c,
             empresa: editForm.empresa.trim(),
+            proyecto_nombre_db: editForm.empresa.trim(),
             proyecto_slug: editForm.proyecto_slug.trim().toLowerCase(),
             deployment_url: finalUrl,
             observaciones: editForm.observaciones.map(o => o?.trim() || "")
